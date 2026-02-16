@@ -13,6 +13,12 @@ if [[ "${SIM_ARCH}" != "arm64" && "${SIM_ARCH}" != "x86_64" ]]; then
   exit 1
 fi
 
+if [[ "${SIM_ARCH}" == "arm64" ]]; then
+  SIM_HOST_TRIPLE="aarch64-apple-darwin"
+else
+  SIM_HOST_TRIPLE="x86_64-apple-darwin"
+fi
+
 ensure_tool curl
 ensure_tool tar
 ensure_tool make
@@ -118,7 +124,7 @@ build_one_target \
 build_one_target \
   "iphonesimulator" \
   "${SIM_ARCH}" \
-  "${SIM_ARCH}-apple-darwin" \
+  "${SIM_HOST_TRIPLE}" \
   "${IOS_OUT_SIM}" \
   "${WORK_ROOT}/build-iphonesimulator-${SIM_ARCH}"
 
