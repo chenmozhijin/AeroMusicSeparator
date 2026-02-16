@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+: "${AMS_USE_SCCACHE:=ON}"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/build_common.sh"
 

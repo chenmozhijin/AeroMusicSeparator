@@ -97,6 +97,7 @@ build_lame() {
 
   if [[ -n "${host_triple}" ]]; then
     env \
+      ac_cv_header_stdc=yes \
       CC="${cc_cmd}" \
       AR="${ar_cmd}" \
       RANLIB="${ranlib_cmd}" \
@@ -112,6 +113,7 @@ build_lame() {
         --disable-decoder
   else
     env \
+      ac_cv_header_stdc=yes \
       CC="${cc_cmd}" \
       AR="${ar_cmd}" \
       RANLIB="${ranlib_cmd}" \

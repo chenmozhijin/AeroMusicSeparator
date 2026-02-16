@@ -49,7 +49,7 @@ jobs:
             artifact_path: aero_music_separator/native/third_party/ffmpeg/windows/x64
             run_cmd: .\aero_music_separator\native\tools\ffmpeg\build_windows.ps1 -Arch x64
           - id: macos-x86_64
-            os: macos-13
+            os: macos-15-intel
             platform: macos
             artifact_name: ffmpeg-macos-x86_64
             artifact_path: aero_music_separator/native/third_party/ffmpeg/macos/x86_64
@@ -160,7 +160,7 @@ jobs:
         shell: bash
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
-          AMS_USE_SCCACHE: ${{ matrix.platform == 'android' && 'OFF' || 'ON' }}
+          AMS_USE_SCCACHE: 'ON'
         run: |
           chmod +x aero_music_separator/native/tools/ffmpeg/*.sh
           ${{ matrix.run_cmd }}
@@ -226,7 +226,7 @@ jobs:
             ffmpeg_artifact: ffmpeg-windows-x64
             ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/windows/x64
           - id: macos-metal
-            os: macos-13
+            os: macos-15-intel
             backend: metal
             ggml_cuda: 'OFF'
             ggml_vulkan: 'OFF'
