@@ -25,14 +25,24 @@ endif()
 
 set(AMS_VULKAN_INCLUDE_DIR "" CACHE PATH "Path containing Vulkan C++ headers (vulkan/vulkan.hpp)")
 if(GGML_VULKAN)
-  if(NOT AMS_VULKAN_INCLUDE_DIR)
-    message(FATAL_ERROR "GGML_VULKAN=ON requires AMS_VULKAN_INCLUDE_DIR.")
+  if(NOT AMS_VULKAN_INCLUDE_DIR OR NOT EXISTS "${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
+    message(STATUS "Vulkan headers not found locally. Fetching Vulkan-Headers from GitHub...")
+    include(FetchContent)
+    FetchContent_Declare(
+      Vulkan-Headers
+      GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+      GIT_TAG        v1.3.296.0
+    )
+    FetchContent_MakeAvailable(Vulkan-Headers)
+    set(AMS_VULKAN_INCLUDE_DIR "${vulkan-headers_SOURCE_DIR}/include" CACHE PATH "Vulkan include dir" FORCE)
   endif()
+
   if(NOT EXISTS "${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
     message(FATAL_ERROR
       "Vulkan C++ headers not found at AMS_VULKAN_INCLUDE_DIR='${AMS_VULKAN_INCLUDE_DIR}'. "
       "Expected ${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
   endif()
+  
   # On Android cross-compilation, host include dirs like /usr/include can be
   # treated as implicit by CMake and dropped from target include flags.
   # Force the Vulkan-Hpp include path into C++ compile options for ggml-vulkan.
