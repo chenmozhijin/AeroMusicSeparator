@@ -429,7 +429,7 @@ jobs:
             artifact_name: app-windows-release
             artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
           - id: macos-release-x86_64
-            os: macos-13
+            os: macos-15-intel
             platform: macos
             ffmpeg_artifact: ffmpeg-macos-x86_64
             ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/macos/x86_64

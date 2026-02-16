@@ -126,8 +126,9 @@ build_lame() {
         --disable-decoder
   fi
 
-  make -j"${AMS_JOBS}"
-  make install
+  make -C libmp3lame -j"${AMS_JOBS}"
+  make -C include install
+  make -C libmp3lame install
   popd >/dev/null
 }
 

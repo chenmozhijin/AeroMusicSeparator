@@ -35,7 +35,7 @@ case "${ABI}" in
   x86_64)
     HOST_TRIPLE="x86_64-linux-android"
     FF_ARCH="x86_64"
-    FF_CPU="x86_64"
+    FF_CPU=""
     CLANG_TRIPLE="x86_64-linux-android"
     ;;
   *)
@@ -87,25 +87,30 @@ build_lame \
   "${RANLIB_RAW}" \
   "${STRIP_RAW}"
 
-configure_ffmpeg \
-  "${FFMPEG_SRC}" \
-  --prefix="${OUT_ROOT}" \
-  --enable-static \
-  --disable-shared \
-  --enable-cross-compile \
-  --target-os=android \
-  --arch="${FF_ARCH}" \
-  --cpu="${FF_CPU}" \
-  --cc="${CC_BIN}" \
-  --cxx="${CXX_BIN}" \
-  --ar="${AR_RAW}" \
-  --ranlib="${RANLIB_RAW}" \
-  --strip="${STRIP_RAW}" \
-  --sysroot="${TOOLCHAIN}/sysroot" \
-  --extra-cflags="-I${LAME_PREFIX}/include ${BASE_CFLAGS}" \
-  --extra-ldflags="-L${LAME_PREFIX}/lib" \
-  --extra-libs="-lm" \
+FFMPEG_FLAGS=(
+  --prefix="${OUT_ROOT}"
+  --enable-static
+  --disable-shared
+  --enable-cross-compile
+  --target-os=android
+  --arch="${FF_ARCH}"
+  --cc="${CC_BIN}"
+  --cxx="${CXX_BIN}"
+  --ar="${AR_RAW}"
+  --ranlib="${RANLIB_RAW}"
+  --strip="${STRIP_RAW}"
+  --sysroot="${TOOLCHAIN}/sysroot"
+  --extra-cflags="-I${LAME_PREFIX}/include ${BASE_CFLAGS}"
+  --extra-ldflags="-L${LAME_PREFIX}/lib"
+  --extra-libs="-lm"
   --enable-libmp3lame
+)
+
+if [[ -n "${FF_CPU}" ]]; then
+  FFMPEG_FLAGS+=(--cpu="${FF_CPU}")
+fi
+
+configure_ffmpeg "${FFMPEG_SRC}" "${FFMPEG_FLAGS[@]}"
 
 build_ffmpeg "${FFMPEG_SRC}"
 stage_third_party_licenses "${FFMPEG_SRC}" "${SRC_ROOT}/lame" "${OUT_ROOT}"
