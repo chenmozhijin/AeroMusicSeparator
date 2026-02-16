@@ -62,23 +62,54 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../native/third_party/ffmpeg/windows/x64/
   set(AMS_FFMPEG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../native/third_party/ffmpeg/windows/x64" CACHE PATH "" FORCE)
 endif()
 
-# Backend defaults for local Windows Flutter builds:
-# Prefer CUDA when toolkit is available, otherwise try Vulkan SDK, else CPU only.
-if(DEFINED ENV{CUDA_PATH} AND EXISTS "$ENV{CUDA_PATH}/bin/nvcc.exe")
+# Backend selection for Windows Flutter builds.
+# When AMS_NATIVE_BACKEND is set, enforce it strictly.
+# Supported: cuda | vulkan | cpu
+set(AMS_NATIVE_BACKEND "$ENV{AMS_NATIVE_BACKEND}")
+string(TOLOWER "${AMS_NATIVE_BACKEND}" AMS_NATIVE_BACKEND)
+
+if(AMS_NATIVE_BACKEND STREQUAL "cuda")
+  if(NOT DEFINED ENV{CUDA_PATH} OR NOT EXISTS "$ENV{CUDA_PATH}/bin/nvcc.exe")
+    message(FATAL_ERROR "AMS_NATIVE_BACKEND=cuda requested, but CUDA_PATH/nvcc.exe was not found.")
+  endif()
   set(GGML_CUDA ON CACHE BOOL "" FORCE)
   set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
   set(GGML_METAL OFF CACHE BOOL "" FORCE)
-  message(STATUS "Windows native backend: CUDA")
-elseif(DEFINED ENV{VULKAN_SDK} AND EXISTS "$ENV{VULKAN_SDK}/Include/vulkan/vulkan.h")
+  message(STATUS "Windows native backend: CUDA (forced)")
+elseif(AMS_NATIVE_BACKEND STREQUAL "vulkan")
+  if(NOT DEFINED ENV{VULKAN_SDK} OR NOT EXISTS "$ENV{VULKAN_SDK}/Include/vulkan/vulkan.h")
+    message(FATAL_ERROR "AMS_NATIVE_BACKEND=vulkan requested, but VULKAN_SDK headers were not found.")
+  endif()
   set(GGML_CUDA OFF CACHE BOOL "" FORCE)
   set(GGML_VULKAN ON CACHE BOOL "" FORCE)
   set(GGML_METAL OFF CACHE BOOL "" FORCE)
-  message(STATUS "Windows native backend: Vulkan")
-else()
+  message(STATUS "Windows native backend: Vulkan (forced)")
+elseif(AMS_NATIVE_BACKEND STREQUAL "cpu")
   set(GGML_CUDA OFF CACHE BOOL "" FORCE)
   set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
   set(GGML_METAL OFF CACHE BOOL "" FORCE)
-  message(WARNING "Windows native backend: CPU only (CUDA_PATH/VULKAN_SDK not detected)")
+  message(STATUS "Windows native backend: CPU (forced)")
+elseif(AMS_NATIVE_BACKEND)
+  message(FATAL_ERROR "Unsupported AMS_NATIVE_BACKEND='${AMS_NATIVE_BACKEND}'. Use one of: cuda, vulkan, cpu.")
+else()
+  # Default local behavior when AMS_NATIVE_BACKEND is not provided:
+  # Prefer CUDA when toolkit is available, otherwise try Vulkan SDK, else CPU only.
+  if(DEFINED ENV{CUDA_PATH} AND EXISTS "$ENV{CUDA_PATH}/bin/nvcc.exe")
+    set(GGML_CUDA ON CACHE BOOL "" FORCE)
+    set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+    set(GGML_METAL OFF CACHE BOOL "" FORCE)
+    message(STATUS "Windows native backend: CUDA")
+  elseif(DEFINED ENV{VULKAN_SDK} AND EXISTS "$ENV{VULKAN_SDK}/Include/vulkan/vulkan.h")
+    set(GGML_CUDA OFF CACHE BOOL "" FORCE)
+    set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+    set(GGML_METAL OFF CACHE BOOL "" FORCE)
+    message(STATUS "Windows native backend: Vulkan")
+  else()
+    set(GGML_CUDA OFF CACHE BOOL "" FORCE)
+    set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+    set(GGML_METAL OFF CACHE BOOL "" FORCE)
+    message(WARNING "Windows native backend: CPU only (CUDA_PATH/VULKAN_SDK not detected)")
+  endif()
 endif()
 
 # Native FFI library build (FFmpeg + BSRoformer).

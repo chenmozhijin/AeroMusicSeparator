@@ -8,11 +8,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      run_cuda:
-        description: Run CUDA native jobs
-        required: false
-        default: true
-        type: boolean
       build_jobs:
         description: Parallel build jobs (auto or integer)
         required: false
@@ -124,6 +119,7 @@ jobs:
           update: true
           install: >-
             base-devel
+            make
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-autotools
             mingw-w64-x86_64-cmake
@@ -201,210 +197,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  openmp-native-verify:
-    name: openmp-native-${{ matrix.id }}
-    needs: prepare-ffmpeg
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: linux-vulkan
-            os: ubuntu-24.04
-            backend: vulkan
-            ggml_cuda: 'OFF'
-            ggml_vulkan: 'ON'
-            ggml_metal: 'OFF'
-            ffmpeg_artifact: ffmpeg-linux-x86_64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/linux/x86_64
-          - id: windows-vulkan
-            os: windows-2025
-            backend: vulkan
-            ggml_cuda: 'OFF'
-            ggml_vulkan: 'ON'
-            ggml_metal: 'OFF'
-            ffmpeg_artifact: ffmpeg-windows-x64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/windows/x64
-          - id: macos-metal
-            os: macos-15-intel
-            backend: metal
-            ggml_cuda: 'OFF'
-            ggml_vulkan: 'OFF'
-            ggml_metal: 'ON'
-            ffmpeg_artifact: ffmpeg-macos-x86_64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/macos/x86_64
-          - id: macos-metal-arm64
-            os: macos-14
-            backend: metal
-            ggml_cuda: 'OFF'
-            ggml_vulkan: 'OFF'
-            ggml_metal: 'ON'
-            ffmpeg_artifact: ffmpeg-macos-arm64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/macos/arm64
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Download ffmpeg artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.ffmpeg_artifact }}
-          path: ${{ matrix.ffmpeg_root }}
-
-      - name: Install deps (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build pkg-config python3 ffmpeg libvulkan-dev
-          sudo apt-get install -y glslc || sudo apt-get install -y glslang-tools
-
-      - name: Install deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew update
-          brew install cmake ninja pkg-config ffmpeg sccache libomp
-
-      - name: Install deps (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: choco install ninja ffmpeg -y
-
-      - name: Install Vulkan SDK (Windows Vulkan backend)
-        if: runner.os == 'Windows' && matrix.backend == 'vulkan'
-        shell: pwsh
-        run: |
-          $VK_VERSION = "1.4.313.2"
-          curl.exe -o VulkanSDK.exe -L "https://sdk.lunarg.com/sdk/download/${VK_VERSION}/windows/vulkansdk-windows-X64-${VK_VERSION}.exe"
-          Start-Process -FilePath .\VulkanSDK.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
-          Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\${VK_VERSION}"
-          Add-Content $env:GITHUB_PATH "C:\VulkanSDK\${VK_VERSION}\bin"
-
-      - name: Setup MSVC
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      - name: Resolve build jobs (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          if [ -z "${BUILD_JOBS_INPUT}" ] || [ "${BUILD_JOBS_INPUT}" = "auto" ]; then
-            jobs="$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)"
-          else
-            jobs="${BUILD_JOBS_INPUT}"
-          fi
-          echo "BUILD_JOBS=${jobs}" >> "$GITHUB_ENV"
-
-      - name: Resolve build jobs (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:BUILD_JOBS_INPUT) -or $env:BUILD_JOBS_INPUT -eq 'auto') {
-            $jobs = $env:NUMBER_OF_PROCESSORS
-          } else {
-            $jobs = $env:BUILD_JOBS_INPUT
-          }
-          Add-Content $env:GITHUB_ENV "BUILD_JOBS=$jobs"
-
-      - name: Configure native (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          mkdir -p build
-          cmake -S aero_music_separator/native -B build/native -G Ninja \
-            -DAMS_BSR_ROOT="${GITHUB_WORKSPACE}/BSRoformer.cpp" \
-            -DGGML_DIR="${GITHUB_WORKSPACE}/ggml" \
-            -DAMS_USE_SYSTEM_FFMPEG=OFF \
-            -DAMS_FFMPEG_ROOT="${GITHUB_WORKSPACE}/${{ matrix.ffmpeg_root }}" \
-            -DGGML_CUDA=${{ matrix.ggml_cuda }} \
-            -DGGML_VULKAN=${{ matrix.ggml_vulkan }} \
-            -DGGML_METAL=${{ matrix.ggml_metal }} \
-            -DCMAKE_C_COMPILER_LAUNCHER=sccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-            2>&1 | tee build/openmp-configure.log
-          grep -E "OpenMP:" build/openmp-configure.log || true
-
-      - name: Configure native (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path build | Out-Null
-          cmake -S aero_music_separator/native -B build/native -G "Ninja Multi-Config" `
-            -DAMS_BSR_ROOT="${env:GITHUB_WORKSPACE}/BSRoformer.cpp" `
-            -DGGML_DIR="${env:GITHUB_WORKSPACE}/ggml" `
-            -DAMS_USE_SYSTEM_FFMPEG=OFF `
-            -DAMS_FFMPEG_ROOT="${env:GITHUB_WORKSPACE}/${{ matrix.ffmpeg_root }}" `
-            -DGGML_CUDA=${{ matrix.ggml_cuda }} `
-            -DGGML_VULKAN=${{ matrix.ggml_vulkan }} `
-            -DGGML_METAL=${{ matrix.ggml_metal }} `
-            -DCMAKE_C_COMPILER_LAUNCHER=sccache `
-            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
-            2>&1 | Tee-Object -FilePath build/openmp-configure.log
-          Select-String -Path build/openmp-configure.log -Pattern "OpenMP:" -CaseSensitive:$false
-
-      - name: Build native (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: cmake --build build/native --parallel "${BUILD_JOBS}"
-
-      - name: Build native (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: cmake --build build/native --config Release --parallel $env:BUILD_JOBS
-
-      - name: Smoke test prepare flow (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          lib_path="$(find build/native -type f \( -name 'libaero_separator_ffi.so' -o -name 'libaero_separator_ffi.dylib' \) | head -n1)"
-          if [ -z "$lib_path" ]; then
-            echo "aero_separator_ffi library not found"
-            exit 1
-          fi
-          python3 aero_music_separator/native/tools/ffi_prepare_smoke.py \
-            --library "$lib_path" \
-            --verify-ogg-opus \
-            --verify-wav-variants
-
-      - name: Smoke test prepare flow (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $lib = Get-ChildItem build/native -Recurse -Filter aero_separator_ffi.dll | Select-Object -First 1
-          if (-not $lib) {
-            throw "aero_separator_ffi.dll not found"
-          }
-          python aero_music_separator/native/tools/ffi_prepare_smoke.py `
-            --library $lib.FullName `
-            --verify-ogg-opus `
-            --verify-wav-variants
-
-      - name: sccache stats (Unix)
-        if: runner.os != 'Windows'
-        run: sccache --show-stats || true
-
-      - name: sccache stats (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: sccache --show-stats
-
-      - name: Upload OpenMP logs and native artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-openmp-${{ matrix.id }}
-          path: |
-            build/openmp-configure.log
-            build/native/**/*.dll
-            build/native/**/*.so
-            build/native/**/*.dylib
-          if-no-files-found: warn
-          retention-days: 7
-
   build-app:
     name: app-${{ matrix.id }}
     needs: prepare-ffmpeg
@@ -413,41 +205,89 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - id: android-release
+          - id: android-vulkan-release
             os: ubuntu-24.04
             platform: android
-            artifact_name: app-android-release
+            backend: vulkan
+            artifact_name: app-android-vulkan-release
             artifact_path: aero_music_separator/android/app/build/outputs/**
-          - id: linux-release
+          - id: linux-vulkan-release
             os: ubuntu-24.04
             platform: linux
-            artifact_name: app-linux-release
+            backend: vulkan
+            artifact_name: app-linux-vulkan-release
             artifact_path: aero_music_separator/build/linux/x64/release/bundle/**
-          - id: windows-release
+          - id: linux-cuda-11_8-release
+            os: ubuntu-22.04
+            platform: linux
+            backend: cuda
+            cuda_version: '11.8.0'
+            artifact_name: app-linux-cuda-11_8-release
+            artifact_path: aero_music_separator/build/linux/x64/release/bundle/**
+          - id: linux-cuda-12_9-release
+            os: ubuntu-24.04
+            platform: linux
+            backend: cuda
+            cuda_version: '12.9.1'
+            artifact_name: app-linux-cuda-12_9-release
+            artifact_path: aero_music_separator/build/linux/x64/release/bundle/**
+          - id: linux-cuda-13_1-release
+            os: ubuntu-24.04
+            platform: linux
+            backend: cuda
+            cuda_version: '13.1.0'
+            artifact_name: app-linux-cuda-13_1-release
+            artifact_path: aero_music_separator/build/linux/x64/release/bundle/**
+          - id: windows-vulkan-release
             os: windows-2025
             platform: windows
-            artifact_name: app-windows-release
+            backend: vulkan
+            artifact_name: app-windows-vulkan-release
             artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
-          - id: macos-release-x86_64
+          - id: windows-cuda-11_8-release
+            os: windows-2025
+            platform: windows
+            backend: cuda
+            cuda_version: '11.8.0'
+            artifact_name: app-windows-cuda-11_8-release
+            artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
+          - id: windows-cuda-12_9-release
+            os: windows-2025
+            platform: windows
+            backend: cuda
+            cuda_version: '12.9.1'
+            artifact_name: app-windows-cuda-12_9-release
+            artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
+          - id: windows-cuda-13_1-release
+            os: windows-2025
+            platform: windows
+            backend: cuda
+            cuda_version: '13.1.0'
+            artifact_name: app-windows-cuda-13_1-release
+            artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
+          - id: macos-metal-x86_64-release
             os: macos-15-intel
             platform: macos
+            backend: metal
             ffmpeg_artifact: ffmpeg-macos-x86_64
             ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/macos/x86_64
-            artifact_name: app-macos-release-x86_64
+            artifact_name: app-macos-metal-x86_64-release
             artifact_path: aero_music_separator/build/macos/Build/Products/Release/*.app
-          - id: macos-release-arm64
+          - id: macos-metal-arm64-release
             os: macos-14
             platform: macos
+            backend: metal
             ffmpeg_artifact: ffmpeg-macos-arm64
             ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/macos/arm64
-            artifact_name: app-macos-release-arm64
+            artifact_name: app-macos-metal-arm64-release
             artifact_path: aero_music_separator/build/macos/Build/Products/Release/*.app
-          - id: ios-release
+          - id: ios-metal-release
             os: macos-14
             platform: ios
+            backend: metal
             ffmpeg_artifact: ffmpeg-ios-device-sim-arm64
             ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/ios
-            artifact_name: app-ios-release
+            artifact_name: app-ios-metal-release
             artifact_path: aero_music_separator/build/ios/iphoneos/*.app
 
     steps:
@@ -489,23 +329,42 @@ jobs:
             libgtk-3-dev \
             liblzma-dev \
             libstdc++-12-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            libavutil-dev \
-            libswresample-dev
+            ffmpeg
+          if [ "${{ matrix.backend }}" = "vulkan" ]; then
+            sudo apt-get install -y libvulkan-dev
+            sudo apt-get install -y glslc || sudo apt-get install -y glslang-tools
+          fi
 
       - name: Install macOS build deps
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install cmake ninja pkg-config libomp cocoapods
+          brew install cmake ninja pkg-config libomp ffmpeg
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
 
       - name: Install Windows build deps
         if: runner.os == 'Windows'
         shell: pwsh
-        run: choco install ninja -y
+        run: choco install ninja ffmpeg -y
+
+      - name: Install Vulkan SDK (Windows Vulkan backend)
+        if: runner.os == 'Windows' && matrix.backend == 'vulkan'
+        shell: pwsh
+        run: |
+          $VK_VERSION = "1.4.313.2"
+          curl.exe -o VulkanSDK.exe -L "https://sdk.lunarg.com/sdk/download/${VK_VERSION}/windows/vulkansdk-windows-X64-${VK_VERSION}.exe"
+          Start-Process -FilePath .\VulkanSDK.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\${VK_VERSION}"
+          Add-Content $env:GITHUB_PATH "C:\VulkanSDK\${VK_VERSION}\bin"
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Setup sccache
+        if: matrix.platform != 'macos' && matrix.platform != 'ios'
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Resolve build jobs (Unix)
@@ -579,6 +438,31 @@ jobs:
           name: ffmpeg-android-x86_64
           path: aero_music_separator/native/third_party/ffmpeg/android/x86_64
 
+      - name: Install CUDA Toolkit (Linux)
+        if: runner.os == 'Linux' && matrix.backend == 'cuda'
+        uses: Jimver/cuda-toolkit@master
+        with:
+          cuda: ${{ matrix.cuda_version }}
+          method: network
+          sub-packages: '["nvcc", "cudart", "thrust"]'
+          non-cuda-sub-packages: '["libcublas", "libcublas-dev"]'
+
+      - name: Install CUDA Toolkit (Windows)
+        if: runner.os == 'Windows' && matrix.backend == 'cuda' && matrix.cuda_version != '13.1.0'
+        uses: Jimver/cuda-toolkit@master
+        with:
+          cuda: ${{ matrix.cuda_version }}
+          method: network
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "thrust", "visual_studio_integration"]'
+
+      - name: Install CUDA Toolkit (Windows 13.1.0)
+        if: runner.os == 'Windows' && matrix.backend == 'cuda' && matrix.cuda_version == '13.1.0'
+        uses: Jimver/cuda-toolkit@master
+        with:
+          cuda: ${{ matrix.cuda_version }}
+          method: network
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "nvrtc", "nvrtc_dev", "crt", "nvvm", "visual_studio_integration"]'
+
       - name: Flutter pub get
         working-directory: aero_music_separator
         run: flutter pub get
@@ -588,6 +472,7 @@ jobs:
         working-directory: aero_music_separator/android
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
+          AMS_NATIVE_BACKEND: ${{ matrix.backend }}
         run: |
           chmod +x ./gradlew
           ./gradlew :app:assembleRelease --stacktrace --parallel --max-workers=${BUILD_JOBS}
@@ -595,19 +480,98 @@ jobs:
       - name: Build Linux app
         if: matrix.platform == 'linux'
         working-directory: aero_music_separator
+        env:
+          AMS_NATIVE_BACKEND: ${{ matrix.backend }}
         run: flutter build linux --release
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
         working-directory: aero_music_separator
+        env:
+          AMS_NATIVE_BACKEND: ${{ matrix.backend }}
         run: flutter build windows --release
 
       - name: Build macOS app
         if: matrix.platform == 'macos'
         working-directory: aero_music_separator
+        env:
+          SCCACHE_DISABLE: '1'
+          AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          CC: clang
+          CXX: clang++
         run: flutter build macos --release
 
-      - name: Smoke check macOS runtime bundle
+      - name: Build iOS app
+        if: matrix.platform == 'ios'
+        working-directory: aero_music_separator
+        env:
+          SCCACHE_DISABLE: '1'
+          AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          CC: clang
+          CXX: clang++
+        run: flutter build ios --release --no-codesign
+
+      - name: Assert backend runtime (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          bundle_dir="aero_music_separator/build/linux/x64/release/bundle"
+          ffi_lib="$(find "${bundle_dir}" -type f -name 'libaero_separator_ffi.so' | head -n1)"
+          if [ -z "${ffi_lib}" ]; then
+            echo "Linux FFI library missing in bundle"
+            exit 1
+          fi
+          if [ "${{ matrix.backend }}" = "vulkan" ]; then
+            backend_lib="$(find "${bundle_dir}" -type f -name 'libggml-vulkan*.so' | head -n1 || true)"
+            if [ -z "${backend_lib}" ]; then
+              echo "Expected Vulkan backend library not found"
+              exit 1
+            fi
+          elif [ "${{ matrix.backend }}" = "cuda" ]; then
+            backend_lib="$(find "${bundle_dir}" -type f -name 'libggml-cuda*.so' | head -n1 || true)"
+            if [ -z "${backend_lib}" ]; then
+              echo "Expected CUDA backend library not found"
+              exit 1
+            fi
+          fi
+
+      - name: Assert backend runtime (Android)
+        if: matrix.platform == 'android'
+        shell: bash
+        run: |
+          ffi_lib="$(find aero_music_separator/android/app/build -type f -name 'libaero_separator_ffi.so' | head -n1 || true)"
+          if [ -z "${ffi_lib}" ]; then
+            echo "Android FFI library not found in Gradle outputs"
+            exit 1
+          fi
+          backend_lib="$(find aero_music_separator/android/app/build -type f -name 'libggml-vulkan.so' | head -n1 || true)"
+          if [ -z "${backend_lib}" ]; then
+            echo "Expected Android Vulkan backend library not found"
+            exit 1
+          fi
+
+      - name: Assert backend runtime (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $releaseDir = Resolve-Path "aero_music_separator/build/windows/x64/runner/Release"
+          $ffi = Get-ChildItem $releaseDir -Recurse -Filter "aero_separator_ffi.dll" | Select-Object -First 1
+          if (-not $ffi) {
+            throw "Windows FFI DLL missing in release bundle"
+          }
+          if ("${{ matrix.backend }}" -eq "vulkan") {
+            $backendDll = Get-ChildItem $releaseDir -Recurse -Filter "*ggml-vulkan*.dll" | Select-Object -First 1
+            if (-not $backendDll) {
+              throw "Expected Vulkan backend DLL not found"
+            }
+          } elseif ("${{ matrix.backend }}" -eq "cuda") {
+            $backendDll = Get-ChildItem $releaseDir -Recurse -Filter "*ggml-cuda*.dll" | Select-Object -First 1
+            if (-not $backendDll) {
+              throw "Expected CUDA backend DLL not found"
+            }
+          }
+
+      - name: Assert backend runtime (macOS)
         if: matrix.platform == 'macos'
         shell: bash
         run: |
@@ -621,14 +585,16 @@ jobs:
             echo "macOS FFI dylib missing in app bundle"
             exit 1
           fi
+          if [ "${{ matrix.backend }}" = "metal" ]; then
+            backend_lib="$(find "${app_path}/Contents/Frameworks" -type f -name 'libggml-metal*.dylib' | head -n1 || true)"
+            if [ -z "${backend_lib}" ]; then
+              echo "Expected Metal backend dylib not found"
+              exit 1
+            fi
+          fi
           otool -L "${ffi_lib}"
 
-      - name: Build iOS app
-        if: matrix.platform == 'ios'
-        working-directory: aero_music_separator
-        run: flutter build ios --release --no-codesign
-
-      - name: Smoke check iOS native packaging
+      - name: Assert backend runtime (iOS)
         if: matrix.platform == 'ios'
         shell: bash
         run: |
@@ -640,9 +606,84 @@ jobs:
             echo "iOS Runner.app not found after build"
             exit 1
           fi
+          if ! grep -R "^GGML_METAL:BOOL=ON$" aero_music_separator/build/native-ios >/dev/null 2>&1; then
+            echo "iOS native build cache does not report GGML_METAL=ON"
+            exit 1
+          fi
+
+      - name: Smoke test prepare flow (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          lib_path="$(find aero_music_separator/build/linux/x64/release/bundle -type f -name 'libaero_separator_ffi.so' | head -n1)"
+          if [ -z "${lib_path}" ]; then
+            echo "Linux FFI library not found for smoke test"
+            exit 1
+          fi
+          python3 aero_music_separator/native/tools/ffi_prepare_smoke.py \
+            --library "${lib_path}" \
+            --verify-ogg-opus \
+            --verify-wav-variants
+
+      - name: Smoke test prepare flow (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $releaseDir = Resolve-Path "aero_music_separator/build/windows/x64/runner/Release"
+          $ffi = Get-ChildItem $releaseDir -Recurse -Filter "aero_separator_ffi.dll" | Select-Object -First 1
+          if (-not $ffi) {
+            throw "Windows FFI library not found for smoke test"
+          }
+
+          $dllDirs = @()
+          $dllDirs += $ffi.Directory.FullName
+
+          $ffmpegBin = Join-Path $PWD "aero_music_separator/native/third_party/ffmpeg/windows/x64/bin"
+          if (Test-Path $ffmpegBin) {
+            $dllDirs += $ffmpegBin
+          }
+
+          Get-ChildItem $releaseDir -Recurse -Filter "*.dll" | ForEach-Object {
+            $dllDirs += $_.DirectoryName
+          }
+
+          $dllDirs = $dllDirs | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+          $smokeArgs = @(
+            "aero_music_separator/native/tools/ffi_prepare_smoke.py",
+            "--library", $ffi.FullName,
+            "--verify-ogg-opus",
+            "--verify-wav-variants"
+          )
+
+          foreach ($dir in $dllDirs) {
+            $smokeArgs += "--dll-dir"
+            $smokeArgs += $dir
+          }
+
+          python @smokeArgs
+
+      - name: Smoke test prepare flow (macOS)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          app_path="$(find aero_music_separator/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -n1)"
+          if [ -z "${app_path}" ]; then
+            echo "macOS app artifact not found for smoke test"
+            exit 1
+          fi
+          ffi_lib="${app_path}/Contents/Frameworks/libaero_separator_ffi.dylib"
+          if [ ! -f "${ffi_lib}" ]; then
+            echo "macOS FFI dylib missing for smoke test"
+            exit 1
+          fi
+          python3 aero_music_separator/native/tools/ffi_prepare_smoke.py \
+            --library "${ffi_lib}" \
+            --verify-ogg-opus \
+            --verify-wav-variants
 
       - name: sccache stats (Unix)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'macos' && matrix.platform != 'ios'
         run: sccache --show-stats || true
 
       - name: sccache stats (Windows)
@@ -690,205 +731,3 @@ jobs:
           path: compliance-bundle/**
           if-no-files-found: error
           retention-days: 30
-
-  build-native-cuda:
-    name: native-cuda-${{ matrix.id }}
-    needs: prepare-ffmpeg
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_cuda == 'true' }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: linux-cuda-11_8
-            os: ubuntu-22.04
-            platform: linux
-            cuda_version: '11.8.0'
-            ffmpeg_artifact: ffmpeg-linux-x86_64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/linux/x86_64
-          - id: linux-cuda-12_9
-            os: ubuntu-latest
-            platform: linux
-            cuda_version: '12.9.1'
-            ffmpeg_artifact: ffmpeg-linux-x86_64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/linux/x86_64
-          - id: linux-cuda-13_1
-            os: ubuntu-latest
-            platform: linux
-            cuda_version: '13.1.0'
-            ffmpeg_artifact: ffmpeg-linux-x86_64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/linux/x86_64
-          - id: windows-cuda-11_8
-            os: windows-2025
-            platform: windows
-            cuda_version: '11.8.0'
-            ffmpeg_artifact: ffmpeg-windows-x64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/windows/x64
-          - id: windows-cuda-12_9
-            os: windows-2025
-            platform: windows
-            cuda_version: '12.9.1'
-            ffmpeg_artifact: ffmpeg-windows-x64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/windows/x64
-          - id: windows-cuda-13_1
-            os: windows-2025
-            platform: windows
-            cuda_version: '13.1.0'
-            ffmpeg_artifact: ffmpeg-windows-x64
-            ffmpeg_root: aero_music_separator/native/third_party/ffmpeg/windows/x64
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Download ffmpeg artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.ffmpeg_artifact }}
-          path: ${{ matrix.ffmpeg_root }}
-
-      - name: Install deps (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build build-essential pkg-config python3
-
-      - name: Install deps (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: choco install ninja ffmpeg -y
-
-      - name: Setup MSVC
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      - name: Resolve build jobs (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          if [ -z "${BUILD_JOBS_INPUT}" ] || [ "${BUILD_JOBS_INPUT}" = "auto" ]; then
-            jobs="$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)"
-          else
-            jobs="${BUILD_JOBS_INPUT}"
-          fi
-          echo "BUILD_JOBS=${jobs}" >> "$GITHUB_ENV"
-
-      - name: Resolve build jobs (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:BUILD_JOBS_INPUT) -or $env:BUILD_JOBS_INPUT -eq 'auto') {
-            $jobs = $env:NUMBER_OF_PROCESSORS
-          } else {
-            $jobs = $env:BUILD_JOBS_INPUT
-          }
-          Add-Content $env:GITHUB_ENV "BUILD_JOBS=$jobs"
-
-      - name: Install CUDA Toolkit (Linux)
-        if: runner.os == 'Linux'
-        uses: Jimver/cuda-toolkit@master
-        with:
-          cuda: ${{ matrix.cuda_version }}
-          method: network
-          sub-packages: '["nvcc", "cudart", "thrust"]'
-          non-cuda-sub-packages: '["libcublas", "libcublas-dev"]'
-
-      - name: Install CUDA Toolkit (Windows)
-        if: runner.os == 'Windows' && matrix.cuda_version != '13.1.0'
-        uses: Jimver/cuda-toolkit@master
-        with:
-          cuda: ${{ matrix.cuda_version }}
-          method: network
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "thrust", "visual_studio_integration"]'
-
-      - name: Install CUDA Toolkit (Windows 13.1.0)
-        if: runner.os == 'Windows' && matrix.cuda_version == '13.1.0'
-        uses: Jimver/cuda-toolkit@master
-        with:
-          cuda: ${{ matrix.cuda_version }}
-          method: network
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "nvrtc", "nvrtc_dev", "crt", "nvvm", "visual_studio_integration"]'
-
-      - name: Configure native CUDA (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          # Keep compile verification fast and aligned with BSR workflow CUDA strategy.
-          CUDA_ARCHS="75;86"
-          cmake -S aero_music_separator/native -B build/native -G Ninja \
-            -DAMS_BSR_ROOT="${GITHUB_WORKSPACE}/BSRoformer.cpp" \
-            -DGGML_DIR="${GITHUB_WORKSPACE}/ggml" \
-            -DAMS_USE_SYSTEM_FFMPEG=OFF \
-            -DAMS_FFMPEG_ROOT="${GITHUB_WORKSPACE}/${{ matrix.ffmpeg_root }}" \
-            -DGGML_CUDA=ON \
-            -DGGML_CUDA_FORCE_MMQ=ON \
-            -DGGML_VULKAN=OFF \
-            -DGGML_METAL=OFF \
-            -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHS}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=sccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-            -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache
-
-      - name: Configure native CUDA (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $cudaVersion = "${{ matrix.cuda_version }}"
-          if ($cudaVersion -match "^11\.") {
-            $cudaArchs = "61;75;86;89"
-            $env:CUDAFLAGS = "-allow-unsupported-compiler -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"
-          } elseif ($cudaVersion -match "^12\.") {
-            $cudaArchs = "61;75;86;89"
-            $env:CUDAFLAGS = ""
-          } else {
-            $cudaArchs = "75;86;89;120"
-            $env:CUDAFLAGS = ""
-          }
-
-          cmake -S aero_music_separator/native -B build/native -G "Ninja Multi-Config" `
-            -DAMS_BSR_ROOT="${env:GITHUB_WORKSPACE}/BSRoformer.cpp" `
-            -DGGML_DIR="${env:GITHUB_WORKSPACE}/ggml" `
-            -DAMS_USE_SYSTEM_FFMPEG=OFF `
-            -DAMS_FFMPEG_ROOT="${env:GITHUB_WORKSPACE}/${{ matrix.ffmpeg_root }}" `
-            -DGGML_CUDA=ON `
-            -DGGML_CUDA_FORCE_MMQ=ON `
-            -DGGML_VULKAN=OFF `
-            -DGGML_METAL=OFF `
-            "-DCMAKE_CUDA_ARCHITECTURES=$cudaArchs" `
-            -DCMAKE_C_COMPILER_LAUNCHER=sccache `
-            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
-
-      - name: Build native CUDA (Linux)
-        if: runner.os == 'Linux'
-        run: cmake --build build/native --parallel "${BUILD_JOBS}"
-
-      - name: Build native CUDA (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: cmake --build build/native --config Release --parallel $env:BUILD_JOBS
-
-      - name: sccache stats (Unix)
-        if: runner.os != 'Windows'
-        run: sccache --show-stats || true
-
-      - name: sccache stats (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: sccache --show-stats
-
-      - name: Upload CUDA artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-cuda-${{ matrix.id }}
-          path: |
-            build/native/**/*.dll
-            build/native/**/*.so
-            build/native/**/*.dylib
-            build/native/**/*.a
-          if-no-files-found: warn
-          retention-days: 7

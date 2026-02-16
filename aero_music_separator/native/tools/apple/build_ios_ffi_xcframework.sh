@@ -60,7 +60,7 @@ configure_and_build() {
     -DAMS_FFMPEG_ROOT="${ffmpeg_root}" \
     -DGGML_CUDA=OFF \
     -DGGML_VULKAN=OFF \
-    -DGGML_METAL=OFF \
+    -DGGML_METAL=ON \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_SYSTEM_NAME=iOS \
     -DCMAKE_OSX_SYSROOT="${sdk}" \
@@ -101,7 +101,11 @@ collect_native_archives() {
 merge_archives() {
   local output_archive="$1"
   local list_file="$2"
-  mapfile -t archives < "${list_file}"
+  local archives=()
+  while IFS= read -r archive; do
+    [[ -z "${archive}" ]] && continue
+    archives+=("${archive}")
+  done < "${list_file}"
   if [[ ${#archives[@]} -eq 0 ]]; then
     echo "No archives to merge for ${output_archive}" >&2
     exit 1

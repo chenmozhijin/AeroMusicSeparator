@@ -214,21 +214,55 @@ def transcode_with_ffmpeg(ffmpeg_cli: str, input_path: Path, output_path: Path, 
     subprocess.run(cmd, check=True)
 
 
+def ffmpeg_encoder_available(ffmpeg_cli: str, encoder: str) -> bool:
+    result = subprocess.run(
+        [ffmpeg_cli, "-hide_banner", "-loglevel", "error", "-encoders"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[1] == encoder:
+            return True
+    return False
+
+
+def pick_ffmpeg_encoder(ffmpeg_cli: str, candidates: tuple[str, ...]) -> str:
+    for codec in candidates:
+        if ffmpeg_encoder_available(ffmpeg_cli, codec):
+            return codec
+    return ""
+
+
 def run_ogg_opus_prepare_smoke(lib: ctypes.CDLL, temp_root: Path, source_wav: Path) -> None:
     ffmpeg_cli = shutil.which("ffmpeg")
     if ffmpeg_cli is None:
         print("[smoke] ffmpeg CLI not found, skip OGG/OPUS decode smoke")
         return
 
-    ogg_input = temp_root / "input.ogg"
-    opus_input = temp_root / "input.opus"
-    transcode_with_ffmpeg(ffmpeg_cli, source_wav, ogg_input, "libvorbis")
-    transcode_with_ffmpeg(ffmpeg_cli, source_wav, opus_input, "libopus")
+    codec_plan = (
+        ("OGG", "input.ogg", "smoke_ogg", ("libvorbis", "vorbis")),
+        ("OPUS", "input.opus", "smoke_opus", ("libopus", "opus")),
+    )
 
-    ogg_result = run_prepare_smoke(lib, temp_root, ogg_input, "smoke_ogg")
-    opus_result = run_prepare_smoke(lib, temp_root, opus_input, "smoke_opus")
-    print(f"[smoke] OGG decode prepare ok: {ogg_result['canonical_input_file']}")
-    print(f"[smoke] OPUS decode prepare ok: {opus_result['canonical_input_file']}")
+    for label, out_name, output_prefix, codec_candidates in codec_plan:
+        codec = pick_ffmpeg_encoder(ffmpeg_cli, codec_candidates)
+        if not codec:
+            print(f"[smoke] {label} encoder unavailable ({', '.join(codec_candidates)}), skip")
+            continue
+
+        output_path = temp_root / out_name
+        try:
+            transcode_with_ffmpeg(ffmpeg_cli, source_wav, output_path, codec)
+        except subprocess.CalledProcessError as exc:
+            print(f"[smoke] {label} transcode failed with {codec}, skip: {exc}")
+            continue
+
+        result = run_prepare_smoke(lib, temp_root, output_path, output_prefix)
+        print(f"[smoke] {label} decode prepare ok ({codec}): {result['canonical_input_file']}")
 
 
 def run_wav_variant_prepare_smoke(lib: ctypes.CDLL, temp_root: Path, source_wav: Path) -> None:
@@ -311,6 +345,42 @@ def run_optional_job_smoke(lib: ctypes.CDLL, model_path: Path, source_input: Pat
             ensure_ok(lib, lib.ams_engine_close(engine.value), "engine close")
 
 
+def parse_env_dll_dirs() -> list[str]:
+    raw = os.environ.get("AMS_DLL_DIRS", "").strip()
+    if not raw:
+        return []
+    return [entry for entry in raw.split(os.pathsep) if entry]
+
+
+def setup_windows_dll_dirs(lib_path: Path, extra_dirs: list[str]) -> list[object]:
+    if os.name != "nt":
+        return []
+
+    handles = []
+    seen = set()
+    candidates = [str(lib_path.parent), *parse_env_dll_dirs(), *extra_dirs]
+    ffmpeg_bin = os.environ.get("AMS_FFMPEG_BIN_DIR", "").strip()
+    if ffmpeg_bin:
+        candidates.append(ffmpeg_bin)
+
+    for raw_dir in candidates:
+        if not raw_dir:
+            continue
+        dir_path = Path(raw_dir).resolve()
+        dir_key = str(dir_path).lower()
+        if dir_key in seen:
+            continue
+        seen.add(dir_key)
+        if not dir_path.is_dir():
+            continue
+        try:
+            handles.append(os.add_dll_directory(str(dir_path)))
+            print(f"[smoke] Added Windows DLL search dir: {dir_path}")
+        except OSError as exc:
+            print(f"[smoke] Failed to add DLL search dir {dir_path}: {exc}")
+    return handles
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Smoke test for Aero separator FFI prepare/job flow")
     parser.add_argument("--library", required=True, help="Path to aero_separator_ffi dynamic library")
@@ -325,12 +395,19 @@ def main() -> int:
         action="store_true",
         help="Also verify common WAV codec variants decode by prepare task",
     )
+    parser.add_argument(
+        "--dll-dir",
+        action="append",
+        default=[],
+        help="Additional DLL search directory on Windows (can be repeated)",
+    )
     args = parser.parse_args()
 
     lib_path = Path(args.library)
     if not lib_path.exists():
         raise FileNotFoundError(f"library not found: {lib_path}")
 
+    _dll_dir_handles = setup_windows_dll_dirs(lib_path, args.dll_dir)
     lib = ctypes.CDLL(str(lib_path))
     configure_ffi(lib)
 

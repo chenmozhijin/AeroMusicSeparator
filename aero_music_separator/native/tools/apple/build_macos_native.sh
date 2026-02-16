@@ -21,6 +21,11 @@ if ! command -v cmake >/dev/null 2>&1; then
   exit 1
 fi
 
+CC_BIN="$(xcrun --sdk macosx --find clang)"
+CXX_BIN="$(xcrun --sdk macosx --find clang++)"
+ASM_BIN="$(xcrun --sdk macosx --find clang)"
+export SCCACHE_DISABLE=1
+
 GENERATOR="Ninja"
 if ! command -v ninja >/dev/null 2>&1; then
   GENERATOR="Unix Makefiles"
@@ -41,6 +46,12 @@ CMAKE_ARGS=(
   -DCMAKE_BUILD_TYPE=Release
   -DCMAKE_OSX_ARCHITECTURES="${ARCH}"
   -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+  -DCMAKE_C_COMPILER="${CC_BIN}"
+  -DCMAKE_CXX_COMPILER="${CXX_BIN}"
+  -DCMAKE_ASM_COMPILER="${ASM_BIN}"
+  -DCMAKE_C_COMPILER_LAUNCHER=
+  -DCMAKE_CXX_COMPILER_LAUNCHER=
+  -DCMAKE_ASM_COMPILER_LAUNCHER=
 )
 
 if [[ -d "${FFMPEG_ROOT}/include" ]]; then

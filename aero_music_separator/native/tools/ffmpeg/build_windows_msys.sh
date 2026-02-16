@@ -5,6 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/build_common.sh"
 
+# On some runners only mingw32-make is present; expose it as make for common helpers.
+if ! command -v make >/dev/null 2>&1 && command -v mingw32-make >/dev/null 2>&1; then
+  make() {
+    mingw32-make "$@"
+  }
+fi
+
 ARCH="${1:-x64}"
 case "${ARCH}" in
   x64)

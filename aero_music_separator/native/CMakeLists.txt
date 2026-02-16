@@ -9,6 +9,10 @@ option(AMS_USE_SYSTEM_FFMPEG "Use pkg-config/system FFmpeg when possible" ON)
 set(AMS_FFMPEG_ROOT "" CACHE PATH "Path to FFmpeg root (contains include/ and lib/)")
 set(AMS_BSR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../BSRoformer.cpp" CACHE PATH "Path to BSRoformer.cpp submodule")
 
+if(NOT WIN32)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
+
 if(NOT EXISTS "${AMS_BSR_ROOT}/CMakeLists.txt")
   message(FATAL_ERROR "BSRoformer.cpp not found at AMS_BSR_ROOT='${AMS_BSR_ROOT}'")
 endif()
@@ -27,6 +31,10 @@ if(NOT TARGET bs_roformer)
   set(MBR_BUILD_CLI OFF CACHE BOOL "" FORCE)
   set(MBR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
   add_subdirectory("${AMS_BSR_ROOT}" bsr_build)
+endif()
+
+if(TARGET bs_roformer)
+  set_target_properties(bs_roformer PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
 set(AMS_NATIVE_LIB_TYPE SHARED)

@@ -66,6 +66,38 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../native/third_party/ffmpeg/linux/x86_64
   set(AMS_FFMPEG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../native/third_party/ffmpeg/linux/x86_64" CACHE PATH "" FORCE)
 endif()
 
+# Backend selection for Linux Flutter builds.
+# Supported via env AMS_NATIVE_BACKEND: cuda | vulkan | cpu
+set(AMS_NATIVE_BACKEND "$ENV{AMS_NATIVE_BACKEND}")
+string(TOLOWER "${AMS_NATIVE_BACKEND}" AMS_NATIVE_BACKEND)
+
+if(AMS_NATIVE_BACKEND STREQUAL "cuda")
+  find_program(AMS_NVCC nvcc)
+  if(NOT AMS_NVCC)
+    message(FATAL_ERROR "AMS_NATIVE_BACKEND=cuda requested, but nvcc was not found in PATH.")
+  endif()
+  set(GGML_CUDA ON CACHE BOOL "" FORCE)
+  set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+  set(GGML_METAL OFF CACHE BOOL "" FORCE)
+  message(STATUS "Linux native backend: CUDA (forced)")
+elseif(AMS_NATIVE_BACKEND STREQUAL "vulkan")
+  find_path(AMS_VULKAN_HEADER_DIR vulkan/vulkan.h)
+  if(NOT AMS_VULKAN_HEADER_DIR)
+    message(FATAL_ERROR "AMS_NATIVE_BACKEND=vulkan requested, but vulkan/vulkan.h was not found.")
+  endif()
+  set(GGML_CUDA OFF CACHE BOOL "" FORCE)
+  set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+  set(GGML_METAL OFF CACHE BOOL "" FORCE)
+  message(STATUS "Linux native backend: Vulkan (forced)")
+elseif(AMS_NATIVE_BACKEND STREQUAL "cpu")
+  set(GGML_CUDA OFF CACHE BOOL "" FORCE)
+  set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+  set(GGML_METAL OFF CACHE BOOL "" FORCE)
+  message(STATUS "Linux native backend: CPU (forced)")
+elseif(AMS_NATIVE_BACKEND)
+  message(FATAL_ERROR "Unsupported AMS_NATIVE_BACKEND='${AMS_NATIVE_BACKEND}'. Use one of: cuda, vulkan, cpu.")
+endif()
+
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native" "${CMAKE_CURRENT_BINARY_DIR}/native")
 add_dependencies(${BINARY_NAME} aero_separator_ffi)
 

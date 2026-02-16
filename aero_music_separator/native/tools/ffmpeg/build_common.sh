@@ -102,6 +102,7 @@ build_lame() {
       AR="${ar_cmd}" \
       RANLIB="${ranlib_cmd}" \
       STRIP="${strip_cmd}" \
+      CPPFLAGS="${cflags}" \
       CFLAGS="${cflags}" \
       LDFLAGS="${ldflags}" \
       ./configure \
@@ -118,6 +119,7 @@ build_lame() {
       AR="${ar_cmd}" \
       RANLIB="${ranlib_cmd}" \
       STRIP="${strip_cmd}" \
+      CPPFLAGS="${cflags}" \
       CFLAGS="${cflags}" \
       LDFLAGS="${ldflags}" \
       ./configure \

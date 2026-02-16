@@ -39,7 +39,7 @@ android {
                 arguments += listOf(
                     "-DANDROID_STL=c++_shared",
                     "-DAMS_USE_SYSTEM_FFMPEG=OFF",
-                    "-DAMS_FFMPEG_ROOT=${'$'}{projectDir}/../../native/third_party/ffmpeg/android/${'$'}{ANDROID_ABI}",
+                    "-DAMS_FFMPEG_ANDROID_ROOT=${'$'}{projectDir}/../../native/third_party/ffmpeg/android",
                     "-DGGML_CUDA=OFF",
                     "-DGGML_VULKAN=ON",
                     "-DGGML_METAL=OFF"
