@@ -352,13 +352,26 @@ def parse_env_dll_dirs() -> list[str]:
     return [entry for entry in raw.split(os.pathsep) if entry]
 
 
+def parse_cuda_bin_dirs() -> list[str]:
+    dirs: list[str] = []
+    for key, value in os.environ.items():
+        if not key.upper().startswith("CUDA_PATH"):
+            continue
+        if not value:
+            continue
+        candidate = Path(value) / "bin"
+        if candidate.is_dir():
+            dirs.append(str(candidate))
+    return dirs
+
+
 def setup_windows_dll_dirs(lib_path: Path, extra_dirs: list[str]) -> list[object]:
     if os.name != "nt":
         return []
 
     handles = []
     seen = set()
-    candidates = [str(lib_path.parent), *parse_env_dll_dirs(), *extra_dirs]
+    candidates = [str(lib_path.parent), *parse_env_dll_dirs(), *parse_cuda_bin_dirs(), *extra_dirs]
     ffmpeg_bin = os.environ.get("AMS_FFMPEG_BIN_DIR", "").strip()
     if ffmpeg_bin:
         candidates.append(ffmpeg_bin)

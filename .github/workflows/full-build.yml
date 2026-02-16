@@ -245,10 +245,11 @@ jobs:
             artifact_name: app-windows-vulkan-release
             artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
           - id: windows-cuda-11_8-release
-            os: windows-2025
+            os: windows-2022
             platform: windows
             backend: cuda
             cuda_version: '11.8.0'
+            cuda_flags: "-allow-unsupported-compiler -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"
             artifact_name: app-windows-cuda-11_8-release
             artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
           - id: windows-cuda-12_9-release
@@ -322,6 +323,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            gcc \
+            g++ \
             clang \
             cmake \
             ninja-build \
@@ -329,6 +332,8 @@ jobs:
             libgtk-3-dev \
             liblzma-dev \
             libstdc++-12-dev \
+            libomp-dev \
+            libgomp1 \
             ffmpeg
           if [ "${{ matrix.backend }}" = "vulkan" ]; then
             sudo apt-get install -y libvulkan-dev
@@ -339,7 +344,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install cmake ninja pkg-config libomp ffmpeg
+          brew install cmake ninja pkg-config libomp llvm ffmpeg
           if ! command -v pod >/dev/null 2>&1; then
             brew install cocoapods
           fi
@@ -362,10 +367,6 @@ jobs:
       - name: Setup MSVC
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Setup sccache
-        if: matrix.platform != 'macos' && matrix.platform != 'ios'
-        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Resolve build jobs (Unix)
         if: runner.os != 'Windows'
@@ -467,12 +468,26 @@ jobs:
         working-directory: aero_music_separator
         run: flutter pub get
 
+      - name: Map short workspace drive (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          if (subst | Select-String '^W:') {
+            subst W: /D
+          }
+          subst W: $env:GITHUB_WORKSPACE
+          if (-not (Test-Path "W:\aero_music_separator")) {
+            throw "Failed to map workspace to W:"
+          }
+
       - name: Build Android app
         if: matrix.platform == 'android'
         working-directory: aero_music_separator/android
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          AMS_VULKAN_INCLUDE_DIR: /usr/include
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
         run: |
           chmod +x ./gradlew
           ./gradlew :app:assembleRelease --stacktrace --parallel --max-workers=${BUILD_JOBS}
@@ -482,13 +497,18 @@ jobs:
         working-directory: aero_music_separator
         env:
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
+          CC: gcc
+          CXX: g++
         run: flutter build linux --release
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
-        working-directory: aero_music_separator
+        working-directory: W:\aero_music_separator
         env:
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
+          CUDAFLAGS: ${{ matrix.cuda_flags || '' }}
         run: flutter build windows --release
 
       - name: Build macOS app
@@ -497,6 +517,7 @@ jobs:
         env:
           SCCACHE_DISABLE: '1'
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
           CC: clang
           CXX: clang++
         run: flutter build macos --release
@@ -507,15 +528,72 @@ jobs:
         env:
           SCCACHE_DISABLE: '1'
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
           CC: clang
           CXX: clang++
         run: flutter build ios --release --no-codesign
+
+      - name: Unmap short workspace drive (Windows)
+        if: ${{ matrix.platform == 'windows' && always() }}
+        shell: pwsh
+        run: |
+          subst W: /D
+
+      - name: OpenMP audit (Unix)
+        if: runner.os != 'Windows' && matrix.platform != 'ios'
+        shell: bash
+        run: |
+          echo "OpenMP audit for ${RUNNER_OS}/${{ matrix.platform }}"
+          found=0
+          while IFS= read -r cache; do
+            lines="$(grep -E '^(GGML_OPENMP|GGML_OPENMP_ENABLED|OpenMP_.*):' "${cache}" || true)"
+            if [ -n "${lines}" ]; then
+              found=1
+              echo "--- ${cache} ---"
+              echo "${lines}"
+            fi
+          done < <(find aero_music_separator/build -type f -name CMakeCache.txt 2>/dev/null || true)
+
+          if [ "${found}" -eq 0 ]; then
+            echo "::warning::No OpenMP cache entries were found for this build."
+          fi
+
+      - name: OpenMP audit (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "OpenMP audit for Windows/${{ matrix.platform }}"
+          $caches = Get-ChildItem "aero_music_separator/build" -Recurse -Filter "CMakeCache.txt" -ErrorAction SilentlyContinue
+          $found = $false
+          foreach ($cache in $caches) {
+            $matches = Select-String -Path $cache.FullName -Pattern '^(GGML_OPENMP|GGML_OPENMP_ENABLED|OpenMP_.*):' -AllMatches
+            if ($matches) {
+              $found = $true
+              Write-Host "--- $($cache.FullName) ---"
+              $matches | ForEach-Object { Write-Host $_.Line }
+            }
+          }
+          if (-not $found) {
+            Write-Host "::warning::No OpenMP cache entries were found for this build."
+          }
+
+      - name: OpenMP audit (iOS)
+        if: matrix.platform == 'ios'
+        shell: bash
+        run: |
+          if grep -R "^GGML_OPENMP:BOOL=OFF$" aero_music_separator/build/native-ios >/dev/null 2>&1; then
+            echo "iOS OpenMP policy confirmed: GGML_OPENMP=OFF"
+          else
+            echo "::warning::Could not confirm GGML_OPENMP=OFF from iOS build cache."
+          fi
 
       - name: Assert backend runtime (Linux)
         if: matrix.platform == 'linux'
         shell: bash
         run: |
           bundle_dir="aero_music_separator/build/linux/x64/release/bundle"
+          echo "Discovered ggml runtime libraries in Linux bundle:"
+          find "${bundle_dir}" -type f -name 'libggml*' -print || true
           ffi_lib="$(find "${bundle_dir}" -type f -name 'libaero_separator_ffi.so' | head -n1)"
           if [ -z "${ffi_lib}" ]; then
             echo "Linux FFI library missing in bundle"
@@ -555,6 +633,10 @@ jobs:
         shell: pwsh
         run: |
           $releaseDir = Resolve-Path "aero_music_separator/build/windows/x64/runner/Release"
+          Write-Host "Discovered ggml runtime libraries in Windows release bundle:"
+          Get-ChildItem $releaseDir -Recurse -Filter "*ggml*.dll" -ErrorAction SilentlyContinue |
+            Sort-Object FullName |
+            ForEach-Object { Write-Host "  $($_.FullName)" }
           $ffi = Get-ChildItem $releaseDir -Recurse -Filter "aero_separator_ffi.dll" | Select-Object -First 1
           if (-not $ffi) {
             throw "Windows FFI DLL missing in release bundle"
@@ -585,6 +667,8 @@ jobs:
             echo "macOS FFI dylib missing in app bundle"
             exit 1
           fi
+          echo "Discovered ggml runtime libraries in macOS app bundle:"
+          find "${app_path}/Contents/Frameworks" -type f -name 'libggml*.dylib' -print || true
           if [ "${{ matrix.backend }}" = "metal" ]; then
             backend_lib="$(find "${app_path}/Contents/Frameworks" -type f -name 'libggml-metal*.dylib' | head -n1 || true)"
             if [ -z "${backend_lib}" ]; then
@@ -629,6 +713,43 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
+          function Print-DllDependents {
+            param(
+              [Parameter(Mandatory = $true)][string]$DllPath,
+              [Parameter(Mandatory = $true)][string]$Label
+            )
+
+            Write-Host "::group::DLL dependents - $Label"
+            if (-not (Test-Path $DllPath)) {
+              Write-Host "not found: $DllPath"
+              Write-Host "::endgroup::"
+              return
+            }
+
+            $dumpbinCmd = Get-Command dumpbin -ErrorAction SilentlyContinue
+            if ($dumpbinCmd) {
+              & $dumpbinCmd.Source /nologo /dependents $DllPath
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "dumpbin failed with exit code $LASTEXITCODE"
+              }
+              Write-Host "::endgroup::"
+              return
+            }
+
+            $linkCmd = Get-Command link -ErrorAction SilentlyContinue
+            if ($linkCmd) {
+              & $linkCmd.Source /dump /dependents $DllPath
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "link /dump failed with exit code $LASTEXITCODE"
+              }
+              Write-Host "::endgroup::"
+              return
+            }
+
+            Write-Host "dumpbin/link not found; cannot print dependents."
+            Write-Host "::endgroup::"
+          }
+
           $releaseDir = Resolve-Path "aero_music_separator/build/windows/x64/runner/Release"
           $ffi = Get-ChildItem $releaseDir -Recurse -Filter "aero_separator_ffi.dll" | Select-Object -First 1
           if (-not $ffi) {
@@ -641,6 +762,17 @@ jobs:
           $ffmpegBin = Join-Path $PWD "aero_music_separator/native/third_party/ffmpeg/windows/x64/bin"
           if (Test-Path $ffmpegBin) {
             $dllDirs += $ffmpegBin
+          }
+
+          if ("${{ matrix.backend }}" -eq "cuda") {
+            Get-ChildItem Env: | Where-Object { $_.Name -like "CUDA_PATH*" } | ForEach-Object {
+              if ($_.Value) {
+                $cudaBin = Join-Path $_.Value "bin"
+                if (Test-Path $cudaBin) {
+                  $dllDirs += $cudaBin
+                }
+              }
+            }
           }
 
           Get-ChildItem $releaseDir -Recurse -Filter "*.dll" | ForEach-Object {
@@ -662,6 +794,71 @@ jobs:
           }
 
           python @smokeArgs
+          $smokeExit = $LASTEXITCODE
+
+          if ($smokeExit -ne 0) {
+            Write-Host "::group::Windows smoke diagnostics"
+            Write-Host "Smoke exit code: $smokeExit"
+            Write-Host "Backend: ${{ matrix.backend }}"
+            Write-Host "FFI DLL: $($ffi.FullName)"
+
+            Write-Host "CUDA_PATH* environment variables:"
+            Get-ChildItem Env: | Where-Object { $_.Name -like "CUDA_PATH*" } | Sort-Object Name | ForEach-Object {
+              Write-Host ("  {0}={1}" -f $_.Name, $_.Value)
+            }
+
+            Write-Host "Collected DLL search directories:"
+            foreach ($dir in $dllDirs) {
+              Write-Host "  $dir"
+            }
+
+            Write-Host "Release directory key DLL inventory:"
+            Get-ChildItem $releaseDir -Recurse -File -Filter "*.dll" |
+              Where-Object {
+                $_.Name -match '^aero_separator_ffi\.dll$' -or
+                $_.Name -match '^ggml-.*\.dll$' -or
+                $_.Name -match '^av.*\.dll$'
+              } |
+              Sort-Object FullName |
+              ForEach-Object { Write-Host "  $($_.FullName)" }
+            Write-Host "::endgroup::"
+
+            Print-DllDependents -DllPath $ffi.FullName -Label "aero_separator_ffi.dll"
+
+            if ("${{ matrix.backend }}" -eq "cuda") {
+              $backendDll = Get-ChildItem $releaseDir -Recurse -Filter "*ggml-cuda*.dll" | Select-Object -First 1
+              if ($backendDll) {
+                Print-DllDependents -DllPath $backendDll.FullName -Label $backendDll.Name
+              } else {
+                Write-Host "::group::DLL dependents - ggml-cuda"
+                Write-Host "not found in release dir"
+                Write-Host "::endgroup::"
+              }
+            } elseif ("${{ matrix.backend }}" -eq "vulkan") {
+              $backendDll = Get-ChildItem $releaseDir -Recurse -Filter "*ggml-vulkan*.dll" | Select-Object -First 1
+              if ($backendDll) {
+                Print-DllDependents -DllPath $backendDll.FullName -Label $backendDll.Name
+              } else {
+                Write-Host "::group::DLL dependents - ggml-vulkan"
+                Write-Host "not found in release dir"
+                Write-Host "::endgroup::"
+              }
+            }
+
+            $avcodecDll = $null
+            if (Test-Path $ffmpegBin) {
+              $avcodecDll = Get-ChildItem $ffmpegBin -Filter "avcodec*.dll" | Select-Object -First 1
+            }
+            if ($avcodecDll) {
+              Print-DllDependents -DllPath $avcodecDll.FullName -Label $avcodecDll.Name
+            } else {
+              Write-Host "::group::DLL dependents - avcodec"
+              Write-Host "not found in ffmpeg bin dir"
+              Write-Host "::endgroup::"
+            }
+          }
+
+          exit $smokeExit
 
       - name: Smoke test prepare flow (macOS)
         if: matrix.platform == 'macos'
@@ -681,15 +878,6 @@ jobs:
             --library "${ffi_lib}" \
             --verify-ogg-opus \
             --verify-wav-variants
-
-      - name: sccache stats (Unix)
-        if: runner.os != 'Windows' && matrix.platform != 'macos' && matrix.platform != 'ios'
-        run: sccache --show-stats || true
-
-      - name: sccache stats (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: sccache --show-stats
 
       - name: Upload app artifacts
         uses: actions/upload-artifact@v4

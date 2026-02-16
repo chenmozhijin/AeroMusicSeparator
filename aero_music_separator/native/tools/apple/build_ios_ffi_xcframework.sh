@@ -61,6 +61,7 @@ configure_and_build() {
     -DGGML_CUDA=OFF \
     -DGGML_VULKAN=OFF \
     -DGGML_METAL=ON \
+    -DGGML_OPENMP=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_SYSTEM_NAME=iOS \
     -DCMAKE_OSX_SYSROOT="${sdk}" \

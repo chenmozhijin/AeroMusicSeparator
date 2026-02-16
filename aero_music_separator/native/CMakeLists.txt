@@ -13,6 +13,12 @@ if(NOT WIN32)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
+if(WIN32)
+  # Shorten ExternalProject paths (notably ggml-vulkan shader generator) to reduce
+  # MSBuild file-tracker path overflows on CI.
+  set_directory_properties(PROPERTIES EP_BASE "${CMAKE_BINARY_DIR}/ep")
+endif()
+
 if(NOT EXISTS "${AMS_BSR_ROOT}/CMakeLists.txt")
   message(FATAL_ERROR "BSRoformer.cpp not found at AMS_BSR_ROOT='${AMS_BSR_ROOT}'")
 endif()

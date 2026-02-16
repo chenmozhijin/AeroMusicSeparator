@@ -58,9 +58,47 @@ copy_if_exists() {
   return 0
 }
 
+print_pattern_matches() {
+  local pattern="$1"
+  local matched=false
+  shopt -s nullglob globstar
+  for file in ${pattern}; do
+    echo "  ${file}"
+    matched=true
+  done
+  shopt -u nullglob globstar
+  if [[ "${matched}" == false ]]; then
+    echo "  (none)"
+  fi
+}
+
+copy_required() {
+  local pattern="$1"
+  local label="$2"
+  if copy_if_exists "${pattern}"; then
+    return 0
+  fi
+
+  echo "[apple-tools] Required runtime missing: ${label}" >&2
+  echo "[apple-tools] AMS_NATIVE_BACKEND=${AMS_NATIVE_BACKEND:-<unset>}" >&2
+  echo "[apple-tools] Build search dir: ${BUILD_DIR}" >&2
+  echo "[apple-tools] Pattern: ${pattern}" >&2
+  echo "[apple-tools] Matches for required pattern:" >&2
+  print_pattern_matches "${pattern}" >&2
+  echo "[apple-tools] Available ggml dylibs under build dir:" >&2
+  print_pattern_matches "${BUILD_DIR}/**/libggml*.dylib" >&2
+  exit 1
+}
+
 cp -f "${AERO_LIB}" "${APP_FRAMEWORKS_DIR}/"
 copy_if_exists "${FFMPEG_ROOT}/lib/*.dylib" || true
-copy_if_exists "${BUILD_DIR}/**/libggml*.dylib" || true
+BACKEND="${AMS_NATIVE_BACKEND:-}"
+BACKEND="$(echo "${BACKEND}" | tr '[:upper:]' '[:lower:]')"
+if [[ "${BACKEND}" == "metal" ]]; then
+  copy_required "${BUILD_DIR}/**/libggml-metal*.dylib" "libggml-metal*.dylib"
+else
+  copy_if_exists "${BUILD_DIR}/**/libggml*.dylib" || true
+fi
 copy_if_exists "${BUILD_DIR}/**/libbs_roformer*.dylib" || true
 
 fix_install_names() {

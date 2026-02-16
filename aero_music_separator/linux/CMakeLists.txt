@@ -101,6 +101,13 @@ endif()
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native" "${CMAKE_CURRENT_BINARY_DIR}/native")
 add_dependencies(${BINARY_NAME} aero_separator_ffi)
 
+set(AMS_GGML_BACKEND_TARGETS "")
+foreach(AMS_GGML_BACKEND_TARGET IN ITEMS ggml-cuda ggml-vulkan ggml-metal)
+  if(TARGET ${AMS_GGML_BACKEND_TARGET})
+    list(APPEND AMS_GGML_BACKEND_TARGETS ${AMS_GGML_BACKEND_TARGET})
+  endif()
+endforeach()
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
@@ -152,6 +159,13 @@ endforeach(bundled_library)
 
 install(FILES $<TARGET_FILE:aero_separator_ffi> DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
+
+if(AMS_GGML_BACKEND_TARGETS)
+  foreach(AMS_GGML_BACKEND_TARGET IN LISTS AMS_GGML_BACKEND_TARGETS)
+    install(FILES $<TARGET_FILE:${AMS_GGML_BACKEND_TARGET}> DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+      COMPONENT Runtime)
+  endforeach()
+endif()
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")

@@ -23,4 +23,18 @@ if(NOT EXISTS "${AMS_FFMPEG_ROOT}/include" OR NOT EXISTS "${AMS_FFMPEG_ROOT}/lib
     "Expected include/ and lib/ under this directory.")
 endif()
 
+set(AMS_VULKAN_INCLUDE_DIR "" CACHE PATH "Path containing Vulkan C++ headers (vulkan/vulkan.hpp)")
+if(GGML_VULKAN)
+  if(NOT AMS_VULKAN_INCLUDE_DIR)
+    message(FATAL_ERROR "GGML_VULKAN=ON requires AMS_VULKAN_INCLUDE_DIR.")
+  endif()
+  if(NOT EXISTS "${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
+    message(FATAL_ERROR
+      "Vulkan C++ headers not found at AMS_VULKAN_INCLUDE_DIR='${AMS_VULKAN_INCLUDE_DIR}'. "
+      "Expected ${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
+  endif()
+  include_directories(BEFORE "${AMS_VULKAN_INCLUDE_DIR}")
+  set(Vulkan_INCLUDE_DIR "${AMS_VULKAN_INCLUDE_DIR}" CACHE PATH "Vulkan include dir" FORCE)
+endif()
+
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../../../../native" native_build)

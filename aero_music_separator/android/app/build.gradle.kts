@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.aero_music_separator"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.2.12479018"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -40,6 +40,7 @@ android {
                     "-DANDROID_STL=c++_shared",
                     "-DAMS_USE_SYSTEM_FFMPEG=OFF",
                     "-DAMS_FFMPEG_ANDROID_ROOT=${'$'}{projectDir}/../../native/third_party/ffmpeg/android",
+                    "-DAMS_VULKAN_INCLUDE_DIR=${'$'}{System.getenv(\"AMS_VULKAN_INCLUDE_DIR\") ?: \"\"}",
                     "-DGGML_CUDA=OFF",
                     "-DGGML_VULKAN=ON",
                     "-DGGML_METAL=OFF"
