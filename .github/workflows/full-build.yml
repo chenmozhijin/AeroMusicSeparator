@@ -706,6 +706,14 @@ jobs:
             echo "Linux FFI library not found for smoke test"
             exit 1
           fi
+          if [ "${{ matrix.backend }}" = "cuda" ]; then
+            if ! ldconfig -p 2>/dev/null | grep -q 'libcuda\.so\.1'; then
+              echo "::warning::Skipping Linux CUDA smoke test because libcuda.so.1 is unavailable on this runner."
+              echo "ldd for ${lib_path}:"
+              ldd "${lib_path}" || true
+              exit 0
+            fi
+          fi
           python3 aero_music_separator/native/tools/ffi_prepare_smoke.py \
             --library "${lib_path}" \
             --verify-ogg-opus \

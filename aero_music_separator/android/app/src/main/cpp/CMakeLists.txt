@@ -33,6 +33,10 @@ if(GGML_VULKAN)
       "Vulkan C++ headers not found at AMS_VULKAN_INCLUDE_DIR='${AMS_VULKAN_INCLUDE_DIR}'. "
       "Expected ${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
   endif()
+  # On Android cross-compilation, host include dirs like /usr/include can be
+  # treated as implicit by CMake and dropped from target include flags.
+  # Force the Vulkan-Hpp include path into C++ compile options for ggml-vulkan.
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-I${AMS_VULKAN_INCLUDE_DIR}>)
   include_directories(BEFORE "${AMS_VULKAN_INCLUDE_DIR}")
   set(Vulkan_INCLUDE_DIR "${AMS_VULKAN_INCLUDE_DIR}" CACHE PATH "Vulkan include dir" FORCE)
 endif()

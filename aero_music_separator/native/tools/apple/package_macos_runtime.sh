@@ -44,14 +44,19 @@ if [[ ! -d "${FFMPEG_ROOT}/lib" ]]; then
 fi
 
 copy_if_exists() {
-  local pattern="$1"
+  local search_root="$1"
+  local name_pattern="$2"
   local copied=false
-  shopt -s nullglob globstar
-  for file in ${pattern}; do
+
+  if [[ ! -d "${search_root}" ]]; then
+    return 1
+  fi
+
+  while IFS= read -r file; do
     cp -f "${file}" "${APP_FRAMEWORKS_DIR}/"
     copied=true
-  done
-  shopt -u nullglob globstar
+  done < <(find "${search_root}" -type f -name "${name_pattern}" 2>/dev/null)
+
   if [[ "${copied}" == false ]]; then
     return 1
   fi
@@ -59,47 +64,54 @@ copy_if_exists() {
 }
 
 print_pattern_matches() {
-  local pattern="$1"
+  local search_root="$1"
+  local name_pattern="$2"
   local matched=false
-  shopt -s nullglob globstar
-  for file in ${pattern}; do
+
+  if [[ ! -d "${search_root}" ]]; then
+    echo "  (none)"
+    return
+  fi
+
+  while IFS= read -r file; do
     echo "  ${file}"
     matched=true
-  done
-  shopt -u nullglob globstar
+  done < <(find "${search_root}" -type f -name "${name_pattern}" 2>/dev/null)
+
   if [[ "${matched}" == false ]]; then
     echo "  (none)"
   fi
 }
 
 copy_required() {
-  local pattern="$1"
-  local label="$2"
-  if copy_if_exists "${pattern}"; then
+  local search_root="$1"
+  local name_pattern="$2"
+  local label="$3"
+  if copy_if_exists "${search_root}" "${name_pattern}"; then
     return 0
   fi
 
   echo "[apple-tools] Required runtime missing: ${label}" >&2
   echo "[apple-tools] AMS_NATIVE_BACKEND=${AMS_NATIVE_BACKEND:-<unset>}" >&2
   echo "[apple-tools] Build search dir: ${BUILD_DIR}" >&2
-  echo "[apple-tools] Pattern: ${pattern}" >&2
+  echo "[apple-tools] Pattern: ${search_root}/**/${name_pattern}" >&2
   echo "[apple-tools] Matches for required pattern:" >&2
-  print_pattern_matches "${pattern}" >&2
+  print_pattern_matches "${search_root}" "${name_pattern}" >&2
   echo "[apple-tools] Available ggml dylibs under build dir:" >&2
-  print_pattern_matches "${BUILD_DIR}/**/libggml*.dylib" >&2
+  print_pattern_matches "${BUILD_DIR}" "libggml*.dylib" >&2
   exit 1
 }
 
 cp -f "${AERO_LIB}" "${APP_FRAMEWORKS_DIR}/"
-copy_if_exists "${FFMPEG_ROOT}/lib/*.dylib" || true
+copy_if_exists "${FFMPEG_ROOT}/lib" "*.dylib" || true
 BACKEND="${AMS_NATIVE_BACKEND:-}"
 BACKEND="$(echo "${BACKEND}" | tr '[:upper:]' '[:lower:]')"
 if [[ "${BACKEND}" == "metal" ]]; then
-  copy_required "${BUILD_DIR}/**/libggml-metal*.dylib" "libggml-metal*.dylib"
+  copy_required "${BUILD_DIR}" "libggml-metal*.dylib" "libggml-metal*.dylib"
 else
-  copy_if_exists "${BUILD_DIR}/**/libggml*.dylib" || true
+  copy_if_exists "${BUILD_DIR}" "libggml*.dylib" || true
 fi
-copy_if_exists "${BUILD_DIR}/**/libbs_roformer*.dylib" || true
+copy_if_exists "${BUILD_DIR}" "libbs_roformer*.dylib" || true
 
 fix_install_names() {
   local dylib="$1"

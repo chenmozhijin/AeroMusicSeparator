@@ -116,7 +116,10 @@ merge_archives() {
 
 DEVICE_BUILD_DIR="${BUILD_ROOT}/device-arm64"
 DEVICE_LIST_FILE="${WORK_ROOT}/device-archives.txt"
-DEVICE_MERGED="${WORK_ROOT}/libaero_separator_ffi_full_device.a"
+DEVICE_MERGED_DIR="${WORK_ROOT}/device"
+DEVICE_MERGED="${DEVICE_MERGED_DIR}/libaero_separator_ffi_full.a"
+
+mkdir -p "${DEVICE_MERGED_DIR}"
 
 configure_and_build "iphoneos" "arm64" "${DEVICE_FFMPEG_ROOT}" "${DEVICE_BUILD_DIR}"
 collect_native_archives "${DEVICE_BUILD_DIR}" "${DEVICE_FFMPEG_ROOT}" "${DEVICE_LIST_FILE}"
@@ -145,7 +148,10 @@ if [[ ${SIM_BUILT_COUNT} -eq 0 ]]; then
   exit 1
 fi
 
-SIM_UNIVERSAL="${WORK_ROOT}/libaero_separator_ffi_full_sim_universal.a"
+SIM_UNIVERSAL_DIR="${WORK_ROOT}/sim"
+SIM_UNIVERSAL="${SIM_UNIVERSAL_DIR}/libaero_separator_ffi_full.a"
+
+mkdir -p "${SIM_UNIVERSAL_DIR}"
 if [[ ${#SIM_MERGED_ARCHIVES[@]} -eq 1 ]]; then
   cp -f "${SIM_MERGED_ARCHIVES[0]}" "${SIM_UNIVERSAL}"
 else
