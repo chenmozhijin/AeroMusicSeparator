@@ -95,24 +95,36 @@ build_lame() {
   pushd "${lame_src}" >/dev/null
   make distclean >/dev/null 2>&1 || true
 
-  local host_flags=()
   if [[ -n "${host_triple}" ]]; then
-    host_flags+=(--host="${host_triple}")
+    env \
+      CC="${cc_cmd}" \
+      AR="${ar_cmd}" \
+      RANLIB="${ranlib_cmd}" \
+      STRIP="${strip_cmd}" \
+      CFLAGS="${cflags}" \
+      LDFLAGS="${ldflags}" \
+      ./configure \
+        --host="${host_triple}" \
+        --prefix="${install_prefix}" \
+        --enable-static \
+        --disable-shared \
+        --disable-frontend \
+        --disable-decoder
+  else
+    env \
+      CC="${cc_cmd}" \
+      AR="${ar_cmd}" \
+      RANLIB="${ranlib_cmd}" \
+      STRIP="${strip_cmd}" \
+      CFLAGS="${cflags}" \
+      LDFLAGS="${ldflags}" \
+      ./configure \
+        --prefix="${install_prefix}" \
+        --enable-static \
+        --disable-shared \
+        --disable-frontend \
+        --disable-decoder
   fi
-
-  env \
-    CC="${cc_cmd}" \
-    AR="${ar_cmd}" \
-    RANLIB="${ranlib_cmd}" \
-    STRIP="${strip_cmd}" \
-    CFLAGS="${cflags}" \
-    LDFLAGS="${ldflags}" \
-    ./configure \
-      "${host_flags[@]}" \
-      --prefix="${install_prefix}" \
-      --enable-static \
-      --disable-shared \
-      --disable-frontend
 
   make -j"${AMS_JOBS}"
   make install

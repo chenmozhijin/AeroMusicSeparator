@@ -11,11 +11,16 @@ if (-not (Test-Path $bashPath)) {
   throw "MSYS2 bash not found at $bashPath. Install MSYS2 or pass -MsysRoot."
 }
 
+$cygpathPath = Join-Path $MsysRoot "usr\bin\cygpath.exe"
+if (-not (Test-Path $cygpathPath)) {
+  throw "MSYS2 cygpath not found at $cygpathPath. Install MSYS2 or pass -MsysRoot."
+}
+
 $scriptRootWin = $PSScriptRoot
-$scriptRootUnix = & $bashPath -lc "cygpath -u '$($scriptRootWin -replace '\\','/')'"
+$scriptRootUnix = & $cygpathPath -u $scriptRootWin
 $scriptRootUnix = $scriptRootUnix.Trim()
-if (-not $scriptRootUnix) {
-  throw "Failed to convert script path to MSYS2 format."
+if (-not $scriptRootUnix -or -not $scriptRootUnix.StartsWith("/")) {
+  throw "Failed to convert script path to MSYS2 format: '$scriptRootUnix'"
 }
 
 $env:MSYSTEM = "MINGW64"

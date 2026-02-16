@@ -160,6 +160,7 @@ jobs:
         shell: bash
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
+          AMS_USE_SCCACHE: ${{ matrix.platform == 'android' && 'OFF' || 'ON' }}
         run: |
           chmod +x aero_music_separator/native/tools/ffmpeg/*.sh
           ${{ matrix.run_cmd }}
