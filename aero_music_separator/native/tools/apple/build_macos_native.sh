@@ -21,8 +21,8 @@ if ! command -v cmake >/dev/null 2>&1; then
   exit 1
 fi
 
-CC_BIN=""
-CXX_BIN=""
+CC_BIN="$(xcrun --sdk macosx --find clang)"
+CXX_BIN="$(xcrun --sdk macosx --find clang++)"
 ASM_BIN="$(xcrun --sdk macosx --find clang)"
 export SCCACHE_DISABLE=1
 
@@ -47,6 +47,7 @@ configure_openmp_args() {
   return 1
 }
 
+USE_HOMEBREW_LLVM="${AMS_USE_HOMEBREW_LLVM:-0}"
 LLVM_PREFIX=""
 for candidate in /opt/homebrew/opt/llvm /usr/local/opt/llvm; do
   if [[ -x "${candidate}/bin/clang" && -x "${candidate}/bin/clang++" ]]; then
@@ -55,19 +56,22 @@ for candidate in /opt/homebrew/opt/llvm /usr/local/opt/llvm; do
   fi
 done
 
-if [[ -n "${LLVM_PREFIX}" ]]; then
-  CC_BIN="${LLVM_PREFIX}/bin/clang"
-  CXX_BIN="${LLVM_PREFIX}/bin/clang++"
-  if configure_openmp_args "${LLVM_PREFIX}"; then
-    echo "[apple-tools] Using Homebrew LLVM toolchain with OpenMP from ${LLVM_PREFIX}"
+if [[ "${USE_HOMEBREW_LLVM}" == "1" ]]; then
+  if [[ -n "${LLVM_PREFIX}" ]]; then
+    CC_BIN="${LLVM_PREFIX}/bin/clang"
+    CXX_BIN="${LLVM_PREFIX}/bin/clang++"
+    if configure_openmp_args "${LLVM_PREFIX}"; then
+      echo "[apple-tools] Using Homebrew LLVM toolchain with OpenMP from ${LLVM_PREFIX}"
+    else
+      echo "[apple-tools] warning: LLVM found at ${LLVM_PREFIX} but libomp is missing; OpenMP may be unavailable." >&2
+      OPENMP_CMAKE_ARGS+=(-DGGML_OPENMP=ON)
+    fi
   else
-    echo "[apple-tools] warning: LLVM found at ${LLVM_PREFIX} but libomp is missing; OpenMP may be unavailable." >&2
-    OPENMP_CMAKE_ARGS+=(-DGGML_OPENMP=ON)
+    echo "[apple-tools] warning: AMS_USE_HOMEBREW_LLVM=1 but Homebrew LLVM was not found; using Apple clang." >&2
   fi
-else
-  CC_BIN="$(xcrun --sdk macosx --find clang)"
-  CXX_BIN="$(xcrun --sdk macosx --find clang++)"
-  echo "[apple-tools] warning: Homebrew LLVM not found, falling back to system clang." >&2
+fi
+
+if [[ ${#OPENMP_CMAKE_ARGS[@]} -eq 0 ]]; then
   LIBOMP_PREFIX=""
   for candidate in /opt/homebrew/opt/libomp /usr/local/opt/libomp; do
     if [[ -f "${candidate}/lib/libomp.dylib" ]]; then
@@ -77,8 +81,18 @@ else
   done
   if [[ -n "${LIBOMP_PREFIX}" ]]; then
     configure_openmp_args "${LIBOMP_PREFIX}" || true
+    if [[ "${USE_HOMEBREW_LLVM}" == "1" && -n "${LLVM_PREFIX}" ]]; then
+      echo "[apple-tools] Using Homebrew LLVM with OpenMP from ${LIBOMP_PREFIX}"
+    else
+      echo "[apple-tools] Using Apple clang with OpenMP from ${LIBOMP_PREFIX}"
+    fi
   else
     OPENMP_CMAKE_ARGS+=(-DGGML_OPENMP=ON)
+    if [[ "${USE_HOMEBREW_LLVM}" == "1" && -n "${LLVM_PREFIX}" ]]; then
+      echo "[apple-tools] warning: OpenMP library not found; relying on toolchain defaults." >&2
+    else
+      echo "[apple-tools] warning: Homebrew libomp not found; relying on toolchain defaults." >&2
+    fi
   fi
 fi
 

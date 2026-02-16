@@ -47,6 +47,9 @@ flutter_ios_podfile_setup
 ensure_aero_separator_xcframework
 
 target 'Runner' do
+  pod 'SDWebImage', :modular_headers => true
+  pod 'DKImagePickerController/PhotoGallery', :modular_headers => true
+  pod 'DKPhotoGallery', :modular_headers => true
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   pod 'AeroSeparatorFFI', :path => '../native/ios/AeroSeparatorFFI'
   target 'RunnerTests' do

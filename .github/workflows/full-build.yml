@@ -250,6 +250,7 @@ jobs:
             backend: cuda
             cuda_version: '11.8.0'
             cuda_flags: "-allow-unsupported-compiler -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"
+            cl_flags: "/D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"
             artifact_name: app-windows-cuda-11_8-release
             artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
           - id: windows-cuda-12_9-release
@@ -344,7 +345,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install cmake ninja pkg-config libomp llvm ffmpeg
+          brew install cmake ninja pkg-config libomp ffmpeg
           if ! command -v pod >/dev/null 2>&1; then
             brew install cocoapods
           fi
@@ -509,6 +510,7 @@ jobs:
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
           CUDAFLAGS: ${{ matrix.cuda_flags || '' }}
+          CL: ${{ matrix.cl_flags || '' }}
         run: flutter build windows --release
 
       - name: Build macOS app
@@ -600,13 +602,13 @@ jobs:
             exit 1
           fi
           if [ "${{ matrix.backend }}" = "vulkan" ]; then
-            backend_lib="$(find "${bundle_dir}" -type f -name 'libggml-vulkan*.so' | head -n1 || true)"
+            backend_lib="$(find "${bundle_dir}" -type f -name 'libggml-vulkan.so*' | head -n1 || true)"
             if [ -z "${backend_lib}" ]; then
               echo "Expected Vulkan backend library not found"
               exit 1
             fi
           elif [ "${{ matrix.backend }}" = "cuda" ]; then
-            backend_lib="$(find "${bundle_dir}" -type f -name 'libggml-cuda*.so' | head -n1 || true)"
+            backend_lib="$(find "${bundle_dir}" -type f -name 'libggml-cuda.so*' | head -n1 || true)"
             if [ -z "${backend_lib}" ]; then
               echo "Expected CUDA backend library not found"
               exit 1
@@ -762,6 +764,46 @@ jobs:
           $ffmpegBin = Join-Path $PWD "aero_music_separator/native/third_party/ffmpeg/windows/x64/bin"
           if (Test-Path $ffmpegBin) {
             $dllDirs += $ffmpegBin
+          }
+
+          if ("${{ matrix.backend }}" -eq "cuda") {
+            $nvcudaCandidates = @("C:\\Windows\\System32\\nvcuda.dll")
+            if ($env:windir) {
+              $nvcudaCandidates = @((Join-Path $env:windir "System32\\nvcuda.dll")) + $nvcudaCandidates
+            }
+            $nvcudaPath = $nvcudaCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+            if (-not $nvcudaPath) {
+              Write-Host "::group::Windows CUDA smoke precheck"
+              Write-Host "NVIDIA driver DLL nvcuda.dll not found on this runner."
+              Write-Host "CUDA_PATH* environment variables:"
+              Get-ChildItem Env: | Where-Object { $_.Name -like "CUDA_PATH*" } | Sort-Object Name | ForEach-Object {
+                Write-Host ("  {0}={1}" -f $_.Name, $_.Value)
+              }
+              Write-Host "::endgroup::"
+
+              Print-DllDependents -DllPath $ffi.FullName -Label "aero_separator_ffi.dll"
+
+              $backendDll = Get-ChildItem $releaseDir -Recurse -Filter "*ggml-cuda*.dll" | Select-Object -First 1
+              if ($backendDll) {
+                Print-DllDependents -DllPath $backendDll.FullName -Label $backendDll.Name
+              } else {
+                Write-Host "::group::DLL dependents - ggml-cuda"
+                Write-Host "not found in release dir"
+                Write-Host "::endgroup::"
+              }
+
+              $avcodecDll = $null
+              if (Test-Path $ffmpegBin) {
+                $avcodecDll = Get-ChildItem $ffmpegBin -Filter "avcodec*.dll" | Select-Object -First 1
+              }
+              if ($avcodecDll) {
+                Print-DllDependents -DllPath $avcodecDll.FullName -Label $avcodecDll.Name
+              }
+
+              Write-Host "::warning::Skipping CUDA smoke test because nvcuda.dll is unavailable on this runner."
+              exit 0
+            }
           }
 
           if ("${{ matrix.backend }}" -eq "cuda") {
