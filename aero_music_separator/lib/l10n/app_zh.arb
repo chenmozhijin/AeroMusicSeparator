@@ -1,0 +1,233 @@
+{
+  "@@locale": "zh",
+  "appTitle": "Aero 音乐分离器",
+  "navInference": "推理",
+  "navSettings": "设置",
+  "navAbout": "关于",
+  "modelPathLabel": "模型路径 (.gguf)",
+  "selectModelButton": "选择模型",
+  "loadingModelDefaults": "正在加载模型默认参数...",
+  "modelDefaultsSummary": "模型默认值: chunk={chunkSize}, overlap={overlap}, sampleRate={sampleRate}",
+  "@modelDefaultsSummary": {
+    "placeholders": {
+      "chunkSize": {},
+      "overlap": {},
+      "sampleRate": {}
+    }
+  },
+  "modelDefaultsNotLoaded": "模型默认参数未加载",
+  "selectedSourceAudioPathLabel": "已选源音频路径",
+  "selectSourceButton": "选择音频",
+  "playInputButton": "播放输入",
+  "pauseInputButton": "暂停输入",
+  "previewStateNoInput": "尚未选择输入文件",
+  "previewStateReady": "输入已准备完成，可试听与分离",
+  "previewStateFailed": "预处理失败",
+  "canonicalInfo": "标准化文件: {path} | {sampleRate}Hz {channels}声道 | {durationMs}ms",
+  "@canonicalInfo": {
+    "placeholders": {
+      "path": {},
+      "sampleRate": {},
+      "channels": {},
+      "durationMs": {}
+    }
+  },
+  "outputPrefixLabel": "输出前缀",
+  "outputLabel": "输出格式",
+  "chunkOverlapModeLabel": "Chunk/Overlap 模式",
+  "chunkOverlapModeAuto": "自动（模型默认）",
+  "chunkOverlapModeCustom": "自定义（高级）",
+  "autoModeRequiresModel": "自动模式需要有效的模型文件。",
+  "autoModeUsingDefaults": "使用模型默认值: chunk={chunkSize}, overlap={overlap}",
+  "@autoModeUsingDefaults": {
+    "placeholders": {
+      "chunkSize": {},
+      "overlap": {}
+    }
+  },
+  "chunkSizeLabel": "Chunk Size",
+  "overlapLabel": "Overlap",
+  "startSeparationButton": "开始分离",
+  "cancelButton": "取消",
+  "separationResultsTitle": "分离结果",
+  "noCachedStems": "暂无缓存 stem 结果。",
+  "exportAllButton": "全部导出",
+  "exportSelectedButton": "导出所选 ({count})",
+  "@exportSelectedButton": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "saveAsButton": "另存为",
+  "logsTitle": "日志",
+  "statusIdle": "空闲",
+  "statusPreparing": "准备中",
+  "statusDone": "完成",
+  "statusCancelled": "已取消",
+  "statusFailed": "失败",
+  "statusCompleted": "已完成",
+  "statusDecodingResampling": "正在解码并重采样音频",
+  "statusRunningInference": "正在执行模型推理",
+  "statusEncodingOutput": "正在编码输出 stem",
+  "inferenceElapsedLabel": "推理耗时：{elapsed}",
+  "@inferenceElapsedLabel": {
+    "placeholders": {
+      "elapsed": {}
+    }
+  },
+  "prepareStatusLoadingInput": "正在加载输入音频",
+  "prepareStatusDecodingInput": "正在解码输入音频",
+  "prepareStatusNormalizing": "正在统一采样率与声道",
+  "prepareStatusWritingCanonical": "正在写入标准化预览文件",
+  "prepareStatusReady": "已可预览",
+  "logModelSelectionFailed": "模型选择失败: {error}",
+  "@logModelSelectionFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logInputSelectionFailed": "输入选择失败: {error}",
+  "@logInputSelectionFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logPreparingInput": "正在准备输入，用于预览和分离...",
+  "logInputReady": "输入预处理完成: {path}",
+  "@logInputReady": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logPrepareFailed": "预处理失败: {error}",
+  "@logPrepareFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logPlaybackFailed": "播放失败: {error}",
+  "@logPlaybackFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logLoadedModelDefaults": "已加载模型默认值: chunk={chunkSize}, overlap={overlap}, sampleRate={sampleRate}",
+  "@logLoadedModelDefaults": {
+    "placeholders": {
+      "chunkSize": {},
+      "overlap": {},
+      "sampleRate": {}
+    }
+  },
+  "logFailedReadModelDefaults": "读取模型默认值失败: {error}",
+  "@logFailedReadModelDefaults": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logModelPathRequired": "模型路径不能为空。",
+  "logPrepareWaitRequired": "请选择输入文件并等待预处理完成。",
+  "logUnableLoadDefaults": "无法加载模型默认值，不能开始任务。",
+  "logInvalidChunkOverlap": "Chunk Size 和 Overlap 必须是正整数。",
+  "logStartingTask": "正在使用缓存输出目录启动分离任务...",
+  "logTaskFinished": "任务完成，结果已缓存，可试听和导出。",
+  "logInferenceElapsed": "推理耗时：{elapsed}",
+  "@logInferenceElapsed": {
+    "placeholders": {
+      "elapsed": {}
+    }
+  },
+  "logTaskFailed": "任务失败: {error}",
+  "@logTaskFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logModelInput": "模型输入文件: {path}",
+  "@logModelInput": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logCanonicalInput": "标准化输入文件: {path}",
+  "@logCanonicalInput": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logCancellingTask": "正在取消分离任务...",
+  "logCancellingPrepare": "正在取消输入预处理...",
+  "logTaskCancelled": "分离任务已取消。",
+  "logPrepareCancelled": "输入预处理已取消。",
+  "logSaveCancelled": "已取消保存 {name}。",
+  "@logSaveCancelled": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "logSavedStem": "已保存 stem: {path}",
+  "@logSavedStem": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logSaveStemFailed": "保存 {name} 失败: {error}",
+  "@logSaveStemFailed": {
+    "placeholders": {
+      "name": {},
+      "error": {}
+    }
+  },
+  "logNoStemsSelected": "没有选择需要导出的 stem。",
+  "logDirectoryExportUnavailable": "当前平台不支持目录导出，已回退为逐个另存为。",
+  "logExportCancelled": "导出已取消。",
+  "logExportFailed": "导出失败: {error}",
+  "@logExportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logExportedStem": "已导出 stem: {path}",
+  "@logExportedStem": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logSkippedStem": "已跳过 stem: {name}",
+  "@logSkippedStem": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "nativeRuntimeUnsupported": "当前构建不包含原生分离运行时支持。",
+  "settingsInferenceGroup": "推理",
+  "settingsUseCpuInference": "使用 CPU 推理",
+  "settingsOpenMpPreset": "OpenMP 预设",
+  "settingsOpenMpNextTaskHint": "仅对下一次任务生效，不影响当前运行中的任务。",
+  "settingsOpenMpUnavailableIos": "iOS 当前不支持 OpenMP，将保持禁用。",
+  "openMpPresetAuto": "自动",
+  "openMpPresetDisabled": "禁用",
+  "openMpPresetConservative": "保守",
+  "openMpPresetBalanced": "平衡",
+  "openMpPresetPerformance": "激进",
+  "settingsLanguageGroup": "语言",
+  "settingsLanguageSystem": "系统跟随",
+  "settingsLanguageChinese": "简体中文",
+  "settingsLanguageEnglish": "English",
+  "settingsOtherGroup": "其他",
+  "settingsNavigateAboutHint": "应用信息与许可证请前往导航中的“关于”页面。",
+  "aboutVersionLabel": "版本 {version} ({buildNumber})",
+  "@aboutVersionLabel": {
+    "placeholders": {
+      "version": {},
+      "buildNumber": {}
+    }
+  },
+  "aboutVersionUnknown": "版本信息不可用",
+  "aboutComponentsTitle": "核心组件",
+  "aboutComponentFfmpeg": "FFmpeg：音频解码、编码与重采样",
+  "aboutComponentBsr": "BSRoformer.cpp：音源分离推理核心",
+  "aboutComponentFfi": "Flutter FFI：应用与原生桥接",
+  "aboutRepositoryTitle": "开源仓库",
+  "aboutLicenseButton": "开源许可证"
+}

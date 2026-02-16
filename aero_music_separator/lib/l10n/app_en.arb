@@ -1,0 +1,233 @@
+{
+  "@@locale": "en",
+  "appTitle": "Aero Music Separator",
+  "navInference": "Inference",
+  "navSettings": "Settings",
+  "navAbout": "About",
+  "modelPathLabel": "Model Path (.gguf)",
+  "selectModelButton": "Select Model",
+  "loadingModelDefaults": "Loading model defaults...",
+  "modelDefaultsSummary": "Model defaults: chunk={chunkSize}, overlap={overlap}, sampleRate={sampleRate}",
+  "@modelDefaultsSummary": {
+    "placeholders": {
+      "chunkSize": {},
+      "overlap": {},
+      "sampleRate": {}
+    }
+  },
+  "modelDefaultsNotLoaded": "Model defaults not loaded",
+  "selectedSourceAudioPathLabel": "Selected Source Audio Path",
+  "selectSourceButton": "Select Source",
+  "playInputButton": "Play Input",
+  "pauseInputButton": "Pause Input",
+  "previewStateNoInput": "No input selected",
+  "previewStateReady": "Input ready for preview and separation",
+  "previewStateFailed": "Prepare failed",
+  "canonicalInfo": "Canonical: {path} | {sampleRate}Hz {channels}ch | {durationMs}ms",
+  "@canonicalInfo": {
+    "placeholders": {
+      "path": {},
+      "sampleRate": {},
+      "channels": {},
+      "durationMs": {}
+    }
+  },
+  "outputPrefixLabel": "Output Prefix",
+  "outputLabel": "Output",
+  "chunkOverlapModeLabel": "Chunk/Overlap Mode",
+  "chunkOverlapModeAuto": "Auto (model defaults)",
+  "chunkOverlapModeCustom": "Custom (advanced)",
+  "autoModeRequiresModel": "Auto mode requires a valid model file.",
+  "autoModeUsingDefaults": "Using model defaults: chunk={chunkSize}, overlap={overlap}",
+  "@autoModeUsingDefaults": {
+    "placeholders": {
+      "chunkSize": {},
+      "overlap": {}
+    }
+  },
+  "chunkSizeLabel": "Chunk Size",
+  "overlapLabel": "Overlap",
+  "startSeparationButton": "Start Separation",
+  "cancelButton": "Cancel",
+  "separationResultsTitle": "Separation Results",
+  "noCachedStems": "No cached stems yet.",
+  "exportAllButton": "Export All",
+  "exportSelectedButton": "Export Selected ({count})",
+  "@exportSelectedButton": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "saveAsButton": "Save As",
+  "logsTitle": "Logs",
+  "statusIdle": "Idle",
+  "statusPreparing": "Preparing",
+  "statusDone": "Done",
+  "statusCancelled": "Cancelled",
+  "statusFailed": "Failed",
+  "statusCompleted": "Completed",
+  "statusDecodingResampling": "Decoding and resampling audio",
+  "statusRunningInference": "Running model inference",
+  "statusEncodingOutput": "Encoding output stems",
+  "inferenceElapsedLabel": "Inference elapsed: {elapsed}",
+  "@inferenceElapsedLabel": {
+    "placeholders": {
+      "elapsed": {}
+    }
+  },
+  "prepareStatusLoadingInput": "Loading input audio",
+  "prepareStatusDecodingInput": "Decoding input audio",
+  "prepareStatusNormalizing": "Normalizing sample rate and channels",
+  "prepareStatusWritingCanonical": "Writing canonical preview file",
+  "prepareStatusReady": "Ready for preview",
+  "logModelSelectionFailed": "Model selection failed: {error}",
+  "@logModelSelectionFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logInputSelectionFailed": "Input selection failed: {error}",
+  "@logInputSelectionFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logPreparingInput": "Preparing input for preview and separation...",
+  "logInputReady": "Input ready for preview: {path}",
+  "@logInputReady": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logPrepareFailed": "Prepare failed: {error}",
+  "@logPrepareFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logPlaybackFailed": "Playback failed: {error}",
+  "@logPlaybackFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logLoadedModelDefaults": "Loaded model defaults: chunk={chunkSize}, overlap={overlap}, sampleRate={sampleRate}",
+  "@logLoadedModelDefaults": {
+    "placeholders": {
+      "chunkSize": {},
+      "overlap": {},
+      "sampleRate": {}
+    }
+  },
+  "logFailedReadModelDefaults": "Failed to read model defaults: {error}",
+  "@logFailedReadModelDefaults": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logModelPathRequired": "Model path is required.",
+  "logPrepareWaitRequired": "Please select an input file and wait until prepare is ready.",
+  "logUnableLoadDefaults": "Unable to load model defaults. Cannot start.",
+  "logInvalidChunkOverlap": "Chunk size and overlap must both be positive integers.",
+  "logStartingTask": "Starting separation task with cached output...",
+  "logTaskFinished": "Task finished. Results are cached and ready to preview/export.",
+  "logInferenceElapsed": "Inference elapsed: {elapsed}",
+  "@logInferenceElapsed": {
+    "placeholders": {
+      "elapsed": {}
+    }
+  },
+  "logTaskFailed": "Task failed: {error}",
+  "@logTaskFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logModelInput": "Model input: {path}",
+  "@logModelInput": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logCanonicalInput": "Canonical input: {path}",
+  "@logCanonicalInput": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logCancellingTask": "Cancelling separation task...",
+  "logCancellingPrepare": "Cancelling input prepare...",
+  "logTaskCancelled": "Separation task cancelled.",
+  "logPrepareCancelled": "Input prepare cancelled.",
+  "logSaveCancelled": "Save cancelled for {name}.",
+  "@logSaveCancelled": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "logSavedStem": "Saved stem: {path}",
+  "@logSavedStem": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logSaveStemFailed": "Failed to save {name}: {error}",
+  "@logSaveStemFailed": {
+    "placeholders": {
+      "name": {},
+      "error": {}
+    }
+  },
+  "logNoStemsSelected": "No stems selected for export.",
+  "logDirectoryExportUnavailable": "Directory export is unavailable on this platform. Falling back to save dialogs.",
+  "logExportCancelled": "Export cancelled.",
+  "logExportFailed": "Export failed: {error}",
+  "@logExportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "logExportedStem": "Exported stem: {path}",
+  "@logExportedStem": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "logSkippedStem": "Skipped stem: {name}",
+  "@logSkippedStem": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "nativeRuntimeUnsupported": "Native separation runtime is unavailable in this build.",
+  "settingsInferenceGroup": "Inference",
+  "settingsUseCpuInference": "Use CPU Inference",
+  "settingsOpenMpPreset": "OpenMP Preset",
+  "settingsOpenMpNextTaskHint": "Applies to the next task. Running tasks are not affected.",
+  "settingsOpenMpUnavailableIos": "OpenMP is unavailable on iOS and will stay disabled.",
+  "openMpPresetAuto": "Auto",
+  "openMpPresetDisabled": "Disabled",
+  "openMpPresetConservative": "Conservative",
+  "openMpPresetBalanced": "Balanced",
+  "openMpPresetPerformance": "Performance",
+  "settingsLanguageGroup": "Language",
+  "settingsLanguageSystem": "System",
+  "settingsLanguageChinese": "简体中文",
+  "settingsLanguageEnglish": "English",
+  "settingsOtherGroup": "Other",
+  "settingsNavigateAboutHint": "Use the About page in navigation for app information and licenses.",
+  "aboutVersionLabel": "Version {version} ({buildNumber})",
+  "@aboutVersionLabel": {
+    "placeholders": {
+      "version": {},
+      "buildNumber": {}
+    }
+  },
+  "aboutVersionUnknown": "Version unavailable",
+  "aboutComponentsTitle": "Core Components",
+  "aboutComponentFfmpeg": "FFmpeg: audio decode/encode and resample",
+  "aboutComponentBsr": "BSRoformer.cpp: source separation inference core",
+  "aboutComponentFfi": "Flutter FFI: app-native bridge",
+  "aboutRepositoryTitle": "Open Source Repository",
+  "aboutLicenseButton": "Open Source Licenses"
+}

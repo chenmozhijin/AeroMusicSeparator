@@ -1,0 +1,6 @@
+[submodule "BSRoformer.cpp"]
+	path = BSRoformer.cpp
+	url = https://github.com/chenmozhijin/BSRoformer.cpp
+[submodule "ggml"]
+	path = ggml
+	url = https://github.com/ggml-org/ggml

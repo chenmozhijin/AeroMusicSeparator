@@ -1,0 +1,110 @@
+# ------------------------------
+# OS / Editor
+# ------------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.swp
+*.swo
+*.tmp
+*.temp
+*.bak
+*.orig
+.idea/
+.vscode/
+*.iml
+
+# ------------------------------
+# Python
+# ------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# ------------------------------
+# Root local cache / outputs
+# ------------------------------
+.cache/
+.aero_prepare_cache/
+build/
+
+# ------------------------------
+# Flutter / Dart (global)
+# ------------------------------
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub/
+**/.pub-cache/
+**/build/
+**/coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+
+# Android generated
+**/android/.gradle/
+**/android/local.properties
+**/android/**/build/
+
+# iOS / macOS generated
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+
+# Linux / Windows Flutter generated
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+
+# ------------------------------
+# CMake / Ninja / MSBuild
+# ------------------------------
+cmake-build-*/
+CMakeUserPresets.json
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/compile_commands.json
+**/build.ninja
+**/.ninja_deps
+**/.ninja_log
+**/*.dir/
+**/*.vcxproj.user
+**/*.VC.db
+**/*.VC.opendb
+**/*.sln.docstates
+**/*.idb
+**/*.ipdb
+**/*.iobj
+**/*.obj
+**/*.o
+**/*.a
+**/*.lib
+**/*.exp
+**/*.ilk
+**/*.pdb
+**/*.dll
+**/*.so
+**/*.dylib
+**/*.exe
+
+# ------------------------------
+# Native local third_party outputs
+# ------------------------------
+aero_music_separator/native/third_party/ffmpeg/
+aero_music_separator/native/ios/AeroSeparatorFFI/AeroSeparatorFFI.xcframework/
+
+# ------------------------------
+# Separation / audio local outputs
+# ------------------------------
+separated*_stem_*.wav
+*_stem_*.wav
+*_canonical_input.wav
