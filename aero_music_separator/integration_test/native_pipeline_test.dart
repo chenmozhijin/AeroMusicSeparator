@@ -39,6 +39,20 @@ void main() {
       ),
       fallback: 300,
     );
+    final chunkSize = _parsePositiveInt(
+      const String.fromEnvironment(
+        'AMS_IT_CHUNK_SIZE',
+        defaultValue: '131072',
+      ),
+      fallback: 131072,
+    );
+    final overlap = _parsePositiveInt(
+      const String.fromEnvironment(
+        'AMS_IT_OVERLAP',
+        defaultValue: '2',
+      ),
+      fallback: 2,
+    );
 
     expect(modelUrl, isNotEmpty, reason: 'AMS_IT_MODEL_URL is required');
     expect(audioUrl, isNotEmpty, reason: 'AMS_IT_AUDIO_URL is required');
@@ -92,6 +106,8 @@ void main() {
           expectedDurationMs: preview.durationMs,
           minOutputBytes: minOutputBytes,
           durationToleranceMs: durationToleranceMs,
+          chunkSize: chunkSize,
+          overlap: overlap,
         );
         successfulRuns += 1;
       } catch (e, st) {
@@ -107,6 +123,8 @@ void main() {
             expectedDurationMs: preview.durationMs,
             minOutputBytes: minOutputBytes,
             durationToleranceMs: durationToleranceMs,
+            chunkSize: chunkSize,
+            overlap: overlap,
           );
           successfulRuns += 1;
           continue;
@@ -129,6 +147,8 @@ Future<void> _runSeparationOnce({
   required int expectedDurationMs,
   required int minOutputBytes,
   required int durationToleranceMs,
+  required int chunkSize,
+  required int overlap,
 }) async {
   await outputRoot.create(recursive: true);
   final runDir = Directory(
@@ -146,8 +166,8 @@ Future<void> _runSeparationOnce({
         outputDir: runDir.path,
         outputPrefix: 'integration_$runTag',
         outputFormat: AmsOutputFormat.wav,
-        chunkSize: -1,
-        overlap: -1,
+        chunkSize: chunkSize,
+        overlap: overlap,
         backend: backend,
       ),
     );

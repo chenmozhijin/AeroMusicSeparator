@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,3 +45,20 @@ static void* const kAmsFfiKeepAlive[] = {
     (void*)&ams_runtime_set_env,
     (void*)&ams_runtime_unset_env,
 };
+
+@interface AmsFfiSymbolKeeper : NSObject
+@end
+
+@implementation AmsFfiSymbolKeeper
+
++ (void)load {
+    uintptr_t checksum = 0;
+    const size_t count = sizeof(kAmsFfiKeepAlive) / sizeof(kAmsFfiKeepAlive[0]);
+    for (size_t i = 0; i < count; ++i) {
+        checksum ^= (uintptr_t)kAmsFfiKeepAlive[i];
+    }
+    static volatile uintptr_t sink = 0;
+    sink = checksum;
+}
+
+@end

@@ -25,4 +25,8 @@ Includes a keep-alive translation unit to ensure exported C symbols are linked.
   s.pod_target_xcconfig = {
     'ENABLE_BITCODE' => 'NO',
   }
+
+  s.user_target_xcconfig = {
+    'OTHER_LDFLAGS' => '$(inherited) -ObjC -Wl,-u,_ams_engine_open',
+  }
 end

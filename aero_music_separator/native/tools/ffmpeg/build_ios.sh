@@ -108,6 +108,7 @@ build_one_target() {
     --enable-libmp3lame
 
   build_ffmpeg "${ffmpeg_build}"
+  cp -f "${lame_prefix}/lib/libmp3lame.a" "${out_root}/lib/libmp3lame.a"
   stage_third_party_licenses "${ffmpeg_build}" "${SRC_ROOT}/lame" "${out_root}"
 }
 

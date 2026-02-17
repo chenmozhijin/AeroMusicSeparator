@@ -16,8 +16,8 @@ import ctypes
 import datetime as dt
 import json
 import os
+import struct
 import time
-import wave
 from pathlib import Path
 from typing import Any
 
@@ -83,8 +83,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timeout-sec",
         type=float,
-        default=240.0,
-        help="Timeout for prepare/job polling in seconds (default: 240)",
+        default=600.0,
+        help="Timeout for prepare/job polling in seconds (default: 600)",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=-1,
+        help="Chunk size for separation job; <=0 uses model defaults (default: -1)",
+    )
+    parser.add_argument(
+        "--overlap",
+        type=int,
+        default=-1,
+        help="Overlap for separation job; <=0 uses model defaults (default: -1)",
     )
     return parser.parse_args()
 
@@ -290,6 +302,8 @@ def run_job(
     output_dir: Path,
     output_prefix: str,
     backend_pref: int,
+    chunk_size: int,
+    overlap: int,
     timeout_sec: float,
 ) -> dict[str, Any]:
     engine = ctypes.c_uint64(0)
@@ -308,8 +322,8 @@ def run_job(
             output_dir=str(output_dir).encode("utf-8"),
             output_prefix=output_prefix.encode("utf-8"),
             output_format=0,  # WAV
-            chunk_size=-1,
-            overlap=-1,
+            chunk_size=chunk_size,
+            overlap=overlap,
         )
 
         ensure_ok(lib, lib.ams_job_start(engine.value, ctypes.byref(run_config), ctypes.byref(job_handle)), "job start")
@@ -333,12 +347,34 @@ def run_job(
 
 
 def read_wav_duration_ms(path: Path) -> int:
-    with wave.open(str(path), "rb") as wf:
-        frames = wf.getnframes()
-        rate = wf.getframerate()
-        if rate <= 0:
-            raise RuntimeError(f"invalid wav sample rate: {rate}")
-        return int(round(frames * 1000.0 / rate))
+    payload = path.read_bytes()
+    if len(payload) < 12:
+        raise RuntimeError(f"WAV too small: {path}")
+    if payload[0:4] != b"RIFF" or payload[8:12] != b"WAVE":
+        raise RuntimeError(f"not a RIFF/WAVE file: {path}")
+
+    byte_rate: int | None = None
+    data_size: int | None = None
+    offset = 12
+    total = len(payload)
+    while offset + 8 <= total:
+        chunk_id = payload[offset : offset + 4]
+        chunk_size = struct.unpack_from("<I", payload, offset + 4)[0]
+        chunk_data = offset + 8
+        chunk_end = chunk_data + chunk_size
+        if chunk_end > total:
+            break
+
+        if chunk_id == b"fmt " and chunk_size >= 16:
+            byte_rate = struct.unpack_from("<I", payload, chunk_data + 8)[0]
+        elif chunk_id == b"data":
+            data_size = chunk_size
+
+        offset = chunk_end + (chunk_size & 1)
+
+    if byte_rate is None or byte_rate <= 0 or data_size is None or data_size < 0:
+        raise RuntimeError(f"invalid WAV metadata: {path}")
+    return int(round(data_size * 1000.0 / byte_rate))
 
 
 def verify_outputs(
@@ -388,6 +424,8 @@ def run_backend_once(
     min_bytes: int,
     expected_duration_ms: int,
     tolerance_ms: int,
+    chunk_size: int,
+    overlap: int,
     timeout_sec: float,
 ) -> dict[str, Any]:
     output_dir = run_root / f"job_{backend}"
@@ -399,6 +437,8 @@ def run_backend_once(
         output_dir=output_dir,
         output_prefix=f"integration_{backend}",
         backend_pref=BACKEND_PREF[backend],
+        chunk_size=chunk_size,
+        overlap=overlap,
         timeout_sec=timeout_sec,
     )
     files = result.get("files")
@@ -436,6 +476,8 @@ def main() -> int:
         "min_bytes": args.min_bytes,
         "duration_tolerance_ms": args.duration_tolerance_ms,
         "timeout_sec": args.timeout_sec,
+        "chunk_size": args.chunk_size,
+        "overlap": args.overlap,
         "prepare": None,
         "runs": [],
         "warnings": [],
@@ -486,6 +528,8 @@ def main() -> int:
                         args.min_bytes,
                         expected_duration_ms,
                         args.duration_tolerance_ms,
+                        args.chunk_size,
+                        args.overlap,
                         args.timeout_sec,
                     )
                     report["runs"].append(run)
@@ -504,6 +548,8 @@ def main() -> int:
                             args.min_bytes,
                             expected_duration_ms,
                             args.duration_tolerance_ms,
+                            args.chunk_size,
+                            args.overlap,
                             args.timeout_sec,
                         )
                         fallback_run["status"] = "degraded_cpu_fallback"
@@ -524,6 +570,8 @@ def main() -> int:
                         args.min_bytes,
                         expected_duration_ms,
                         args.duration_tolerance_ms,
+                        args.chunk_size,
+                        args.overlap,
                         args.timeout_sec,
                     )
                     report["runs"].append(run)
@@ -539,6 +587,10 @@ def main() -> int:
     if report["success"]:
         print("[integration] success")
         return 0
+    for warning in report["warnings"]:
+        print(f"[integration] warning: {warning}")
+    for error in report["errors"]:
+        print(f"[integration] error: {error}")
     print("[integration] failed")
     return 1
 

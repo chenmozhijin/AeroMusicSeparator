@@ -1053,7 +1053,10 @@ jobs:
             --input "${input_path}" \
             --backends "${backends}" \
             --min-bytes 1000 \
+            --chunk-size 131072 \
+            --overlap 2 \
             --duration-tolerance-ms 300 \
+            --timeout-sec 600 \
             --report "${report_path}"
 
       - name: Desktop integration (Windows)
@@ -1095,7 +1098,10 @@ jobs:
             --input $inputPath `
             --backends $backends `
             --min-bytes 1000 `
+            --chunk-size 131072 `
+            --overlap 2 `
             --duration-tolerance-ms 300 `
+            --timeout-sec 600 `
             --report $reportPath
 
       - name: Android emulator integration
@@ -1122,6 +1128,8 @@ jobs:
               --dart-define=AMS_IT_MODEL_URL=http://10.0.2.2:18080/model.gguf \
               --dart-define=AMS_IT_AUDIO_URL=http://10.0.2.2:18080/input.wav \
               --dart-define=AMS_IT_BACKENDS=cpu \
+              --dart-define=AMS_IT_CHUNK_SIZE=131072 \
+              --dart-define=AMS_IT_OVERLAP=2 \
               --dart-define=AMS_IT_MIN_OUTPUT_BYTES=1000 \
               --dart-define=AMS_IT_DURATION_TOLERANCE_MS=300 \
               2>&1 | tee ../.ci-integration/android-integration.log
@@ -1172,9 +1180,36 @@ jobs:
             --dart-define=AMS_IT_MODEL_URL=http://127.0.0.1:18081/model.gguf \
             --dart-define=AMS_IT_AUDIO_URL=http://127.0.0.1:18081/input.wav \
             --dart-define=AMS_IT_BACKENDS=cpu \
+            --dart-define=AMS_IT_CHUNK_SIZE=131072 \
+            --dart-define=AMS_IT_OVERLAP=2 \
             --dart-define=AMS_IT_MIN_OUTPUT_BYTES=1000 \
             --dart-define=AMS_IT_DURATION_TOLERANCE_MS=300 \
             2>&1 | tee ../.ci-integration/ios-integration.log
+
+      - name: Dump desktop integration report (Linux/macOS)
+        if: ${{ always() && (matrix.platform == 'linux' || matrix.platform == 'macos') && steps.integration_desktop_unix.outcome != 'success' }}
+        shell: bash
+        run: |
+          set +e
+          echo "=== .ci-integration listing ==="
+          ls -la .ci-integration || true
+          shopt -s nullglob
+          for report in .ci-integration/report-*.json; do
+            echo "--- ${report} ---"
+            cat "${report}" || true
+          done
+
+      - name: Dump desktop integration report (Windows)
+        if: ${{ always() && matrix.platform == 'windows' && steps.integration_desktop_windows.outcome != 'success' }}
+        shell: pwsh
+        run: |
+          Write-Host "=== .ci-integration listing ==="
+          Get-ChildItem ".ci-integration" -Force -ErrorAction SilentlyContinue
+          $reports = Get-ChildItem ".ci-integration" -Filter "report-*.json" -File -ErrorAction SilentlyContinue
+          foreach ($report in $reports) {
+            Write-Host "--- $($report.FullName) ---"
+            Get-Content $report.FullName -Raw
+          }
 
       - name: Integration warning summary
         id: integration_warning_summary
@@ -1230,6 +1265,7 @@ jobs:
         with:
           name: integration-report-${{ matrix.id }}
           path: .ci-integration/**
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
 

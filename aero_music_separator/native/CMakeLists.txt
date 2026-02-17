@@ -93,6 +93,23 @@ if(AMS_FFMPEG_ROOT)
     target_link_directories(aero_separator_ffi PRIVATE "${AMS_FFMPEG_ROOT}/bin")
   endif()
   target_link_libraries(aero_separator_ffi PRIVATE avformat avcodec avutil swresample)
+
+  set(AMS_STATIC_AVCODEC "${AMS_FFMPEG_ROOT}/lib/libavcodec.a")
+  if(EXISTS "${AMS_STATIC_AVCODEC}")
+    # Static FFmpeg archives built with libmp3lame require explicit consumer-side linkage.
+    find_library(AMS_MP3LAME_LIBRARY
+      NAMES mp3lame libmp3lame
+      PATHS "${AMS_FFMPEG_ROOT}/lib"
+      NO_DEFAULT_PATH
+    )
+    if(AMS_MP3LAME_LIBRARY)
+      target_link_libraries(aero_separator_ffi PRIVATE "${AMS_MP3LAME_LIBRARY}")
+    else()
+      message(FATAL_ERROR
+        "Static FFmpeg detected at AMS_FFMPEG_ROOT='${AMS_FFMPEG_ROOT}', but libmp3lame was not found in lib/. "
+        "Rebuild FFmpeg prebuilts so libmp3lame is staged together with libavcodec.a.")
+    endif()
+  endif()
 else()
   if(AMS_USE_SYSTEM_FFMPEG)
     find_package(PkgConfig REQUIRED)
