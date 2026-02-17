@@ -62,6 +62,8 @@ configure_and_build() {
     -DGGML_VULKAN=OFF \
     -DGGML_METAL=ON \
     -DGGML_OPENMP=OFF \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DGGML_BACKEND_DL=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_SYSTEM_NAME=iOS \
     -DCMAKE_OSX_SYSROOT="${sdk}" \
@@ -77,6 +79,14 @@ collect_native_archives() {
   local ffmpeg_root="$2"
   local output_list_file="$3"
   local main_lib=""
+  local ggml_archives=()
+  local found_required=0
+  local required_ggml=(
+    "libggml.a"
+    "libggml-base.a"
+    "libggml-cpu.a"
+    "libggml-metal.a"
+  )
 
   : > "${output_list_file}"
 
@@ -87,7 +97,35 @@ collect_native_archives() {
   fi
   echo "${main_lib}" >> "${output_list_file}"
   find "${build_dir}" -type f -name "libbs_roformer*.a" >> "${output_list_file}" || true
-  find "${build_dir}" -type f -name "libggml*.a" >> "${output_list_file}" || true
+
+  while IFS= read -r archive; do
+    [[ -z "${archive}" ]] && continue
+    ggml_archives+=("${archive}")
+    echo "${archive}" >> "${output_list_file}"
+  done < <(find "${build_dir}" -type f -name "libggml*.a" | sort)
+
+  if [[ ${#ggml_archives[@]} -eq 0 ]]; then
+    echo "Missing ggml static archives under ${build_dir}" >&2
+    echo "Discovered ggml-related files:" >&2
+    find "${build_dir}" -type f -name "libggml*" -print >&2 || true
+    exit 1
+  fi
+
+  for required in "${required_ggml[@]}"; do
+    found_required=0
+    for archive in "${ggml_archives[@]}"; do
+      if [[ "$(basename "${archive}")" == "${required}" ]]; then
+        found_required=1
+        break
+      fi
+    done
+    if [[ ${found_required} -eq 0 ]]; then
+      echo "Missing required ggml archive '${required}' under ${build_dir}" >&2
+      echo "Discovered ggml static archives:" >&2
+      printf '  %s\n' "${ggml_archives[@]}" >&2
+      exit 1
+    fi
+  done
 
   for lib_name in libavformat.a libavcodec.a libavutil.a libswresample.a libmp3lame.a; do
     if [[ -f "${ffmpeg_root}/lib/${lib_name}" ]]; then
@@ -111,6 +149,8 @@ merge_archives() {
     echo "No archives to merge for ${output_archive}" >&2
     exit 1
   fi
+  echo "[apple-tools] Merging archives into ${output_archive}:" >&2
+  printf '  %s\n' "${archives[@]}" >&2
   libtool -static -o "${output_archive}" "${archives[@]}"
 }
 

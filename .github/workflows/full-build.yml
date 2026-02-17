@@ -67,12 +67,6 @@ jobs:
             artifact_name: ffmpeg-android-arm64-v8a
             artifact_path: aero_music_separator/native/third_party/ffmpeg/android/arm64-v8a
             run_cmd: ./aero_music_separator/native/tools/ffmpeg/build_android.sh arm64-v8a
-          - id: android-armeabi-v7a
-            os: ubuntu-24.04
-            platform: android
-            artifact_name: ffmpeg-android-armeabi-v7a
-            artifact_path: aero_music_separator/native/third_party/ffmpeg/android/armeabi-v7a
-            run_cmd: ./aero_music_separator/native/tools/ffmpeg/build_android.sh armeabi-v7a
           - id: android-x86_64
             os: ubuntu-24.04
             platform: android
@@ -440,13 +434,6 @@ jobs:
           name: ffmpeg-android-arm64-v8a
           path: aero_music_separator/native/third_party/ffmpeg/android/arm64-v8a
 
-      - name: Download ffmpeg (Android armeabi-v7a)
-        if: matrix.platform == 'android'
-        uses: actions/download-artifact@v4
-        with:
-          name: ffmpeg-android-armeabi-v7a
-          path: aero_music_separator/native/third_party/ffmpeg/android/armeabi-v7a
-
       - name: Download ffmpeg (Android x86_64)
         if: matrix.platform == 'android'
         uses: actions/download-artifact@v4
@@ -461,7 +448,6 @@ jobs:
           set -euo pipefail
           find aero_music_separator/native/third_party/ffmpeg/android -type f -name 'libmp3lame.a' -print || true
           test -f aero_music_separator/native/third_party/ffmpeg/android/arm64-v8a/lib/libmp3lame.a
-          test -f aero_music_separator/native/third_party/ffmpeg/android/armeabi-v7a/lib/libmp3lame.a
           test -f aero_music_separator/native/third_party/ffmpeg/android/x86_64/lib/libmp3lame.a
 
       - name: Assert downloaded FFmpeg bundles include libmp3lame.a (iOS)
