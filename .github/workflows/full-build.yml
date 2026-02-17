@@ -166,6 +166,20 @@ jobs:
         shell: pwsh
         run: ${{ matrix.run_cmd }}
 
+      - name: Assert FFmpeg bundles include libmp3lame.a
+        if: matrix.platform == 'android' || matrix.platform == 'ios'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Inspecting staged FFmpeg bundle: ${{ matrix.artifact_path }}"
+          find "${{ matrix.artifact_path }}" -type f -name 'libmp3lame.a' -print || true
+          if [[ "${{ matrix.platform }}" == "android" ]]; then
+            test -f "${{ matrix.artifact_path }}/lib/libmp3lame.a"
+          else
+            test -f "${{ matrix.artifact_path }}/iphoneos-arm64/lib/libmp3lame.a"
+            test -f "${{ matrix.artifact_path }}/iphonesimulator-arm64/lib/libmp3lame.a"
+          fi
+
       - name: sccache stats (Unix)
         if: runner.os != 'Windows'
         run: sccache --show-stats || true
@@ -439,6 +453,25 @@ jobs:
         with:
           name: ffmpeg-android-x86_64
           path: aero_music_separator/native/third_party/ffmpeg/android/x86_64
+
+      - name: Assert downloaded FFmpeg bundles include libmp3lame.a (Android)
+        if: matrix.platform == 'android'
+        shell: bash
+        run: |
+          set -euo pipefail
+          find aero_music_separator/native/third_party/ffmpeg/android -type f -name 'libmp3lame.a' -print || true
+          test -f aero_music_separator/native/third_party/ffmpeg/android/arm64-v8a/lib/libmp3lame.a
+          test -f aero_music_separator/native/third_party/ffmpeg/android/armeabi-v7a/lib/libmp3lame.a
+          test -f aero_music_separator/native/third_party/ffmpeg/android/x86_64/lib/libmp3lame.a
+
+      - name: Assert downloaded FFmpeg bundles include libmp3lame.a (iOS)
+        if: matrix.platform == 'ios'
+        shell: bash
+        run: |
+          set -euo pipefail
+          find aero_music_separator/native/third_party/ffmpeg/ios -type f -name 'libmp3lame.a' -print || true
+          test -f aero_music_separator/native/third_party/ffmpeg/ios/iphoneos-arm64/lib/libmp3lame.a
+          test -f aero_music_separator/native/third_party/ffmpeg/ios/iphonesimulator-arm64/lib/libmp3lame.a
 
       - name: Install CUDA Toolkit (Linux)
         if: runner.os == 'Linux' && matrix.backend == 'cuda'

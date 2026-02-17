@@ -97,16 +97,31 @@ if(AMS_FFMPEG_ROOT)
   set(AMS_STATIC_AVCODEC "${AMS_FFMPEG_ROOT}/lib/libavcodec.a")
   if(EXISTS "${AMS_STATIC_AVCODEC}")
     # Static FFmpeg archives built with libmp3lame require explicit consumer-side linkage.
-    find_library(AMS_MP3LAME_LIBRARY
-      NAMES mp3lame libmp3lame
-      PATHS "${AMS_FFMPEG_ROOT}/lib"
-      NO_DEFAULT_PATH
-    )
+    # Prefer direct path to avoid cross-toolchain find_library quirks.
+    set(AMS_MP3LAME_LIBRARY "")
+    set(AMS_MP3LAME_STATIC_CANDIDATE "${AMS_FFMPEG_ROOT}/lib/libmp3lame.a")
+    if(EXISTS "${AMS_MP3LAME_STATIC_CANDIDATE}")
+      set(AMS_MP3LAME_LIBRARY "${AMS_MP3LAME_STATIC_CANDIDATE}")
+    else()
+      find_library(AMS_MP3LAME_LIBRARY
+        NAMES mp3lame
+        PATHS "${AMS_FFMPEG_ROOT}/lib"
+        NO_DEFAULT_PATH
+      )
+    endif()
+
     if(AMS_MP3LAME_LIBRARY)
       target_link_libraries(aero_separator_ffi PRIVATE "${AMS_MP3LAME_LIBRARY}")
     else()
+      file(GLOB AMS_FFMPEG_LIB_ENTRIES RELATIVE "${AMS_FFMPEG_ROOT}/lib" "${AMS_FFMPEG_ROOT}/lib/*")
+      if(AMS_FFMPEG_LIB_ENTRIES)
+        list(JOIN AMS_FFMPEG_LIB_ENTRIES ", " AMS_FFMPEG_LIB_ENTRIES_TEXT)
+      else()
+        set(AMS_FFMPEG_LIB_ENTRIES_TEXT "<empty>")
+      endif()
       message(FATAL_ERROR
         "Static FFmpeg detected at AMS_FFMPEG_ROOT='${AMS_FFMPEG_ROOT}', but libmp3lame was not found in lib/. "
+        "Inspected '${AMS_FFMPEG_ROOT}/lib': ${AMS_FFMPEG_LIB_ENTRIES_TEXT}. "
         "Rebuild FFmpeg prebuilts so libmp3lame is staged together with libavcodec.a.")
     endif()
   endif()
