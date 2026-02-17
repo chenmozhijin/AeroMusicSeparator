@@ -58,7 +58,14 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  arm64_only_ci = ENV['AMS_IOS_CI_ARM64_ONLY'] == '1'
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    next unless arm64_only_ci
+
+    target.build_configurations.each do |config|
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64'
+      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+    end
   end
 end

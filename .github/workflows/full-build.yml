@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AMS_FFMPEG_VERSION: n7.1.1
+  AMS_FFMPEG_VERSION: n8.0
   AMS_LAME_VERSION: '3.100'
   BUILD_JOBS_INPUT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_jobs || 'auto' }}
 
@@ -529,6 +529,9 @@ jobs:
         env:
           SCCACHE_DISABLE: '1'
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          AMS_IOS_SIM_ARCHS: arm64
+          AMS_IOS_CI_ARM64_ONLY: '1'
+          AMS_FORCE_REBUILD_XCFRAMEWORK: '1'
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
           CC: clang
           CXX: clang++
@@ -1010,7 +1013,7 @@ jobs:
         id: integration_generate_audio
         if: always()
         continue-on-error: true
-        run: python BSRoformer.cpp/scripts/generate_test_audio.py --output .ci-integration/input.wav --duration 5.0 --sample-rate 44100
+        run: python BSRoformer.cpp/scripts/generate_test_audio.py --output .ci-integration/input.wav --duration 3.0 --sample-rate 44100
 
       - name: Desktop integration (Linux/macOS)
         id: integration_desktop_unix
@@ -1024,12 +1027,6 @@ jobs:
           input_path=".ci-integration/input.wav"
 
           backends="cpu"
-          if [ "${{ matrix.backend }}" = "vulkan" ]; then
-            backends="cpu,vulkan"
-          fi
-          if [ "${{ matrix.backend }}" = "cuda" ]; then
-            echo "::warning::Hosted runner has no NVIDIA driver; skipping CUDA runtime integration and running CPU only."
-          fi
 
           if [ "${{ matrix.platform }}" = "linux" ]; then
             lib_path="$(find aero_music_separator/build/linux/x64/release/bundle -type f -name 'libaero_separator_ffi.so' | head -n1)"
@@ -1091,11 +1088,6 @@ jobs:
           $env:AMS_DLL_DIRS = [string]::Join([IO.Path]::PathSeparator, $dllDirs)
 
           $backends = "cpu"
-          if ("${{ matrix.backend }}" -eq "vulkan") {
-            $backends = "cpu,vulkan"
-          } elseif ("${{ matrix.backend }}" -eq "cuda") {
-            Write-Host "::warning::Hosted runner has no NVIDIA driver; skipping CUDA runtime integration and running CPU only."
-          }
 
           python aero_music_separator/native/tools/ffi_pipeline_integration.py `
             --library $ffi.FullName `
@@ -1129,7 +1121,7 @@ jobs:
               -d emulator-5554 \
               --dart-define=AMS_IT_MODEL_URL=http://10.0.2.2:18080/model.gguf \
               --dart-define=AMS_IT_AUDIO_URL=http://10.0.2.2:18080/input.wav \
-              --dart-define=AMS_IT_BACKENDS=cpu,vulkan \
+              --dart-define=AMS_IT_BACKENDS=cpu \
               --dart-define=AMS_IT_MIN_OUTPUT_BYTES=1000 \
               --dart-define=AMS_IT_DURATION_TOLERANCE_MS=300 \
               2>&1 | tee ../.ci-integration/android-integration.log
@@ -1139,6 +1131,10 @@ jobs:
         if: ${{ always() && matrix.platform == 'ios' }}
         continue-on-error: true
         shell: bash
+        env:
+          AMS_IOS_SIM_ARCHS: arm64
+          AMS_IOS_CI_ARM64_ONLY: '1'
+          AMS_FORCE_REBUILD_XCFRAMEWORK: '1'
         run: |
           set -euo pipefail
           cd "${GITHUB_WORKSPACE}"

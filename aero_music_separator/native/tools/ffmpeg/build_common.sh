@@ -211,6 +211,7 @@ verify_ffmpeg_lgpl_profile() {
 
   assert_config_flag "${config_h}" "CONFIG_GPL" "0"
   assert_config_flag "${config_h}" "CONFIG_VERSION3" "0"
+  assert_config_flag "${config_h}" "CONFIG_PIC" "1"
   assert_config_flag "${config_h}" "CONFIG_LIBMP3LAME" "1"
 }
 
