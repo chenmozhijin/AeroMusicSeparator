@@ -1242,7 +1242,7 @@ jobs:
               -d emulator-5554 \
               --dart-define=AMS_IT_MODEL_URL=http://10.0.2.2:18080/model.gguf \
               --dart-define=AMS_IT_AUDIO_URL=http://10.0.2.2:18080/input.wav \
-              --dart-define=AMS_IT_BACKENDS=cpu \
+              --dart-define=AMS_IT_BACKENDS=auto,cpu \
               --dart-define=AMS_IT_CHUNK_SIZE=131072 \
               --dart-define=AMS_IT_OVERLAP=2 \
               --dart-define=AMS_IT_MIN_OUTPUT_BYTES=1000 \

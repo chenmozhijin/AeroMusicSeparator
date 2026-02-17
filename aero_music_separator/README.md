@@ -69,6 +69,14 @@ flutter pub get
 - Web is intentionally out of scope.
 - Android pipeline expects prebuilt FFmpeg artifacts under `native/third_party/ffmpeg/android`.
 
+### Android Vulkan compatibility
+
+- On some Android GPU drivers, Vulkan may crash during model import (weight buffer allocation stage).
+- Android runtime now enables a Vulkan safe mode for `Auto` / `Vulkan` backend selection by setting:
+  - `GGML_VK_DISABLE_HOST_VISIBLE_VIDMEM=1`
+  - `GGML_VK_ALLOW_SYSMEM_FALLBACK=1`
+- If a specific device still crashes, enable **Use CPU Inference** in app settings as a stable fallback.
+
 ## File Picker Notes
 
 - The app uses `file_picker` for model/audio selection and export.

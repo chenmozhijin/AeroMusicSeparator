@@ -2,10 +2,20 @@
 
 #include <cstdlib>
 #include <exception>
+#include <iostream>
+
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 
 #include "error_store.h"
 
 namespace {
+
+constexpr const char* kVulkanDisableHostVisibleVidmem =
+    "GGML_VK_DISABLE_HOST_VISIBLE_VIDMEM";
+constexpr const char* kVulkanAllowSysmemFallback =
+    "GGML_VK_ALLOW_SYSMEM_FALLBACK";
 
 void SetEnvFlag(const char* key, const char* value) {
 #ifdef _WIN32
@@ -23,6 +33,15 @@ void UnsetEnvFlag(const char* key) {
 #endif
 }
 
+void LogBackendPolicy(const char* policy) {
+#if defined(__ANDROID__)
+  __android_log_print(
+      ANDROID_LOG_INFO, "AeroSeparatorFFI", "backend policy: %s", policy);
+#else
+  std::cout << "[AeroSeparatorFFI] backend policy: " << policy << std::endl;
+#endif
+}
+
 }  // namespace
 
 namespace ams {
@@ -33,13 +52,57 @@ EngineManager& EngineManager::Instance() {
 }
 
 void EngineManager::ApplyBackendPreference(int32_t backend_preference) {
-  if (backend_preference == AMS_BACKEND_CPU) {
+  const bool force_cpu = backend_preference == AMS_BACKEND_CPU;
+  if (force_cpu) {
     SetEnvFlag("BSR_FORCE_CPU", "1");
-    return;
+  } else {
+    // For non-CPU modes keep auto path by removing the force flag.
+    UnsetEnvFlag("BSR_FORCE_CPU");
   }
 
-  // For non-CPU modes keep auto path by removing the force flag.
-  UnsetEnvFlag("BSR_FORCE_CPU");
+#if defined(__ANDROID__)
+  const bool enable_vulkan_safe_mode =
+      backend_preference == AMS_BACKEND_AUTO ||
+      backend_preference == AMS_BACKEND_VULKAN;
+  if (enable_vulkan_safe_mode) {
+    SetEnvFlag(kVulkanDisableHostVisibleVidmem, "1");
+    SetEnvFlag(kVulkanAllowSysmemFallback, "1");
+  } else {
+    UnsetEnvFlag(kVulkanDisableHostVisibleVidmem);
+    UnsetEnvFlag(kVulkanAllowSysmemFallback);
+  }
+#endif
+
+  const char* policy = "Auto";
+  switch (backend_preference) {
+    case AMS_BACKEND_CPU:
+      policy = "CPU";
+      break;
+    case AMS_BACKEND_AUTO:
+#if defined(__ANDROID__)
+      policy = "Auto+VulkanSafe";
+#else
+      policy = "Auto";
+#endif
+      break;
+    case AMS_BACKEND_VULKAN:
+#if defined(__ANDROID__)
+      policy = "VulkanSafe";
+#else
+      policy = "Vulkan";
+#endif
+      break;
+    case AMS_BACKEND_CUDA:
+      policy = "CUDA";
+      break;
+    case AMS_BACKEND_METAL:
+      policy = "Metal";
+      break;
+    default:
+      policy = "Auto";
+      break;
+  }
+  LogBackendPolicy(policy);
 }
 
 ams_code_t EngineManager::Open(const std::string& model_path,
