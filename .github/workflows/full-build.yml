@@ -950,7 +950,7 @@ jobs:
         continue-on-error: true
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy soundfile huggingface_hub
+          python -m pip install numpy soundfile
 
       - name: Prepare integration workspace (Unix)
         id: integration_workspace_unix
@@ -966,11 +966,45 @@ jobs:
         shell: pwsh
         run: New-Item -ItemType Directory -Path ".ci-integration" -Force | Out-Null
 
-      - name: Download integration model
-        id: integration_download_model
-        if: always()
+      - name: Download integration model (Unix)
+        id: integration_download_model_unix
+        if: ${{ always() && runner.os != 'Windows' }}
         continue-on-error: true
-        run: python aero_music_separator/native/tools/ci_download_gguf.py --repo chenmozhijin/BSRoformer-GGUF --output .ci-integration/model.gguf --metadata .ci-integration/model-meta.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://huggingface.co/chenmozhijin/BSRoformer-GGUF/resolve/main/anvuew/BS-RoFormer/BSRoformer-anvuew-Q4_0.gguf"
+          out=".ci-integration/model.gguf"
+          curl --fail --location --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 300 "$url" --output "$out"
+          size_bytes="$(wc -c < "$out" | tr -d ' ')"
+          echo "[integration] downloaded model to $out (${size_bytes} bytes)"
+
+      - name: Download integration model (Windows)
+        id: integration_download_model_windows
+        if: ${{ always() && runner.os == 'Windows' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $url = "https://huggingface.co/chenmozhijin/BSRoformer-GGUF/resolve/main/anvuew/BS-RoFormer/BSRoformer-anvuew-Q4_0.gguf"
+          $out = Join-Path $PWD ".ci-integration/model.gguf"
+          $success = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile $out -TimeoutSec 300
+              $success = $true
+              break
+            } catch {
+              Write-Host "::warning::Model download attempt $attempt failed: $($_.Exception.Message)"
+              if ($attempt -lt 3) {
+                Start-Sleep -Seconds 2
+              }
+            }
+          }
+          if (-not $success) {
+            throw "Failed to download integration model after 3 attempts."
+          }
+          $size = (Get-Item $out).Length
+          Write-Host "[integration] downloaded model to $out ($size bytes)"
 
       - name: Generate integration audio
         id: integration_generate_audio
@@ -1114,24 +1148,24 @@ jobs:
           trap 'kill ${server_pid} || true' EXIT
 
           device_id="$(python3 - <<'PY'
-import json
-import subprocess
+          import json
+          import subprocess
 
-raw = subprocess.check_output(
-    ["xcrun", "simctl", "list", "devices", "available", "--json"],
-    text=True,
-)
-payload = json.loads(raw)
-for runtime, devices in payload.get("devices", {}).items():
-    if "iOS" not in runtime:
-        continue
-    for dev in devices:
-        if dev.get("isAvailable") and str(dev.get("name", "")).startswith("iPhone"):
-            print(dev["udid"])
-            raise SystemExit(0)
-raise SystemExit("No available iOS simulator device found")
-PY
-)"
+          raw = subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "--json"],
+              text=True,
+          )
+          payload = json.loads(raw)
+          for runtime, devices in payload.get("devices", {}).items():
+              if "iOS" not in runtime:
+                  continue
+              for dev in devices:
+                  if dev.get("isAvailable") and str(dev.get("name", "")).startswith("iPhone"):
+                      print(dev["udid"])
+                      raise SystemExit(0)
+          raise SystemExit("No available iOS simulator device found")
+          PY
+          )"
 
           xcrun simctl boot "${device_id}" || true
           xcrun simctl bootstatus "${device_id}" -b
@@ -1155,7 +1189,8 @@ PY
           OUTCOME_INSTALL_DEPS: ${{ steps.integration_install_deps.outcome }}
           OUTCOME_WORKSPACE_UNIX: ${{ steps.integration_workspace_unix.outcome }}
           OUTCOME_WORKSPACE_WINDOWS: ${{ steps.integration_workspace_windows.outcome }}
-          OUTCOME_DOWNLOAD_MODEL: ${{ steps.integration_download_model.outcome }}
+          OUTCOME_DOWNLOAD_MODEL_UNIX: ${{ steps.integration_download_model_unix.outcome }}
+          OUTCOME_DOWNLOAD_MODEL_WINDOWS: ${{ steps.integration_download_model_windows.outcome }}
           OUTCOME_GENERATE_AUDIO: ${{ steps.integration_generate_audio.outcome }}
           OUTCOME_DESKTOP_UNIX: ${{ steps.integration_desktop_unix.outcome }}
           OUTCOME_DESKTOP_WINDOWS: ${{ steps.integration_desktop_windows.outcome }}
@@ -1168,7 +1203,8 @@ PY
             'integration_install_deps'    = $env:OUTCOME_INSTALL_DEPS
             'integration_workspace_unix'  = $env:OUTCOME_WORKSPACE_UNIX
             'integration_workspace_windows' = $env:OUTCOME_WORKSPACE_WINDOWS
-            'integration_download_model'  = $env:OUTCOME_DOWNLOAD_MODEL
+            'integration_download_model_unix'  = $env:OUTCOME_DOWNLOAD_MODEL_UNIX
+            'integration_download_model_windows' = $env:OUTCOME_DOWNLOAD_MODEL_WINDOWS
             'integration_generate_audio'  = $env:OUTCOME_GENERATE_AUDIO
             'integration_desktop_unix'    = $env:OUTCOME_DESKTOP_UNIX
             'integration_desktop_windows' = $env:OUTCOME_DESKTOP_WINDOWS
