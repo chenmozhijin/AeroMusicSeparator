@@ -77,6 +77,11 @@ target_include_directories(aero_separator_ffi
 
 target_link_libraries(aero_separator_ffi PRIVATE bs_roformer)
 
+if(ANDROID)
+  # __android_log_print is provided by liblog on Android.
+  target_link_libraries(aero_separator_ffi PRIVATE log)
+endif()
+
 # Ensure optional ggml backend runtime targets are built together with FFI.
 foreach(AMS_GGML_BACKEND_TARGET IN ITEMS ggml-cuda ggml-vulkan ggml-metal)
   if(TARGET ${AMS_GGML_BACKEND_TARGET})
