@@ -167,7 +167,6 @@ ffmpeg_base_flags() {
 --disable-doc
 --disable-network
 --disable-avdevice
---disable-postproc
 --disable-swscale
 --disable-bsfs
 --disable-filters
