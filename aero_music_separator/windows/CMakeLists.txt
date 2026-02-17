@@ -112,6 +112,19 @@ else()
   endif()
 endif()
 
+if(GGML_CUDA)
+  set(AMS_CUDA_ARCHITECTURES "$ENV{AMS_CUDA_ARCHITECTURES}")
+  if(AMS_CUDA_ARCHITECTURES)
+    if(NOT AMS_CUDA_ARCHITECTURES MATCHES "^[0-9]+(;[0-9]+)*$")
+      message(FATAL_ERROR
+        "Invalid AMS_CUDA_ARCHITECTURES='${AMS_CUDA_ARCHITECTURES}'. "
+        "Expected format: '<arch>[;<arch>...]', e.g. '75;86'.")
+    endif()
+    set(CMAKE_CUDA_ARCHITECTURES "${AMS_CUDA_ARCHITECTURES}" CACHE STRING "" FORCE)
+    message(STATUS "Windows CUDA architectures from AMS_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+  endif()
+endif()
+
 # Native FFI library build (FFmpeg + BSRoformer).
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native" "${CMAKE_CURRENT_BINARY_DIR}/native")
 add_dependencies(${BINARY_NAME} aero_separator_ffi)

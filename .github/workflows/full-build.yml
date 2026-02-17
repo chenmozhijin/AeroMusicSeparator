@@ -230,6 +230,7 @@ jobs:
             platform: linux
             backend: cuda
             cuda_version: '11.8.0'
+            cuda_architectures: '61;75;86;89'
             artifact_name: app-linux-cuda-11_8-release
             artifact_path: aero_music_separator/build/linux/x64/release/bundle/**
           - id: linux-cuda-12_9-release
@@ -237,6 +238,7 @@ jobs:
             platform: linux
             backend: cuda
             cuda_version: '12.9.1'
+            cuda_architectures: '61;75;86;89'
             artifact_name: app-linux-cuda-12_9-release
             artifact_path: aero_music_separator/build/linux/x64/release/bundle/**
           - id: linux-cuda-13_1-release
@@ -244,6 +246,7 @@ jobs:
             platform: linux
             backend: cuda
             cuda_version: '13.1.0'
+            cuda_architectures: '75;86;89;120'
             artifact_name: app-linux-cuda-13_1-release
             artifact_path: aero_music_separator/build/linux/x64/release/bundle/**
           - id: windows-vulkan-release
@@ -257,6 +260,7 @@ jobs:
             platform: windows
             backend: cuda
             cuda_version: '11.8.0'
+            cuda_architectures: '61;75;86;89'
             cuda_flags: "-allow-unsupported-compiler -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"
             cl_flags: "/D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH /D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"
             artifact_name: app-windows-cuda-11_8-release
@@ -266,6 +270,7 @@ jobs:
             platform: windows
             backend: cuda
             cuda_version: '12.9.1'
+            cuda_architectures: '61;75;86;89'
             artifact_name: app-windows-cuda-12_9-release
             artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
           - id: windows-cuda-13_1-release
@@ -273,6 +278,7 @@ jobs:
             platform: windows
             backend: cuda
             cuda_version: '13.1.0'
+            cuda_architectures: '75;86;89;120'
             artifact_name: app-windows-cuda-13_1-release
             artifact_path: aero_music_separator/build/windows/x64/runner/Release/**
           - id: macos-metal-x86_64-release
@@ -325,7 +331,7 @@ jobs:
 
       - name: Install Android NDK/CMake
         if: matrix.platform == 'android'
-        run: sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+        run: sdkmanager "ndk;28.2.13676358" "cmake;3.22.1"
 
       - name: Install Linux build deps
         if: runner.os == 'Linux'
@@ -488,6 +494,24 @@ jobs:
         working-directory: aero_music_separator
         run: flutter pub get
 
+      - name: Generate Android release tooling
+        if: matrix.platform == 'android'
+        working-directory: aero_music_separator
+        run: flutter build apk --config-only --release
+
+      - name: Verify Android release plugin registrant
+        if: matrix.platform == 'android'
+        working-directory: aero_music_separator
+        shell: bash
+        run: |
+          set -euo pipefail
+          registrant="android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java"
+          if grep -q "integration_test\\.IntegrationTestPlugin" "${registrant}"; then
+            echo "::error file=${registrant}::integration_test plugin is still present in release GeneratedPluginRegistrant.java after --config-only --release."
+            echo "This would fail :app:compileReleaseJavaWithJavac because integration_test is a dev dependency."
+            exit 1
+          fi
+
       - name: Map short workspace drive (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -504,7 +528,7 @@ jobs:
         if: matrix.platform == 'android'
         working-directory: aero_music_separator/android
         env:
-          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.2.13676358
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
         run: |
@@ -516,20 +540,76 @@ jobs:
         working-directory: aero_music_separator
         env:
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          AMS_CUDA_ARCHITECTURES: ${{ matrix.backend == 'cuda' && matrix.cuda_architectures || '' }}
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
           CC: gcc
           CXX: g++
         run: flutter build linux --release
+
+      - name: Verify CUDA architectures cache (Linux)
+        if: matrix.platform == 'linux' && matrix.backend == 'cuda'
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="CMAKE_CUDA_ARCHITECTURES:STRING=${{ matrix.cuda_architectures }}"
+          mapfile -t cache_files < <(find aero_music_separator/build/linux -type f -name CMakeCache.txt | sort)
+          if [ "${#cache_files[@]}" -eq 0 ]; then
+            echo "CMakeCache.txt not found under aero_music_separator/build/linux"
+            exit 1
+          fi
+          matched=0
+          for cache_file in "${cache_files[@]}"; do
+            if grep -F "${expected}" "${cache_file}" >/dev/null; then
+              echo "Matched '${expected}' in ${cache_file}"
+              matched=1
+              break
+            fi
+          done
+          if [ "${matched}" -ne 1 ]; then
+            echo "Expected '${expected}' not found in any Linux CMakeCache.txt"
+            for cache_file in "${cache_files[@]}"; do
+              echo "Inspecting ${cache_file}"
+              grep -n '^CMAKE_CUDA_ARCHITECTURES:STRING=' "${cache_file}" || true
+            done
+            exit 1
+          fi
 
       - name: Build Windows app
         if: matrix.platform == 'windows'
         working-directory: W:\aero_music_separator
         env:
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
+          AMS_CUDA_ARCHITECTURES: ${{ matrix.backend == 'cuda' && matrix.cuda_architectures || '' }}
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
           CUDAFLAGS: ${{ matrix.cuda_flags || '' }}
           CL: ${{ matrix.cl_flags || '' }}
         run: flutter build windows --release
+
+      - name: Verify CUDA architectures cache (Windows)
+        if: matrix.platform == 'windows' && matrix.backend == 'cuda'
+        shell: pwsh
+        run: |
+          $expected = "CMAKE_CUDA_ARCHITECTURES:STRING=${{ matrix.cuda_architectures }}"
+          $caches = Get-ChildItem -Path "W:\aero_music_separator\build\windows" -Filter "CMakeCache.txt" -Recurse -File | Sort-Object FullName
+          if (-not $caches) {
+            throw "CMakeCache.txt not found under W:\aero_music_separator\build\windows"
+          }
+          $matched = $false
+          foreach ($cache in $caches) {
+            if (Select-String -Path $cache.FullName -Pattern $expected -SimpleMatch) {
+              Write-Host "Matched '$expected' in $($cache.FullName)"
+              $matched = $true
+              break
+            }
+          }
+          if (-not $matched) {
+            Write-Host "Expected '$expected' not found in any Windows CMakeCache.txt"
+            foreach ($cache in $caches) {
+              Write-Host "Inspecting $($cache.FullName)"
+              Select-String -Path $cache.FullName -Pattern '^CMAKE_CUDA_ARCHITECTURES:STRING=' | ForEach-Object { $_.Line }
+            }
+            throw "CMAKE_CUDA_ARCHITECTURES mismatch"
+          }
 
       - name: Build macOS app
         if: matrix.platform == 'macos'

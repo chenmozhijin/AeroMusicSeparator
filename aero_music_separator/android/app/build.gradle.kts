@@ -10,7 +10,7 @@ val amsVulkanIncludeDir = System.getenv("AMS_VULKAN_INCLUDE_DIR") ?: ""
 android {
     namespace = "com.example.aero_music_separator"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.2.12479018"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
