@@ -487,7 +487,6 @@ jobs:
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
           AMS_NATIVE_BACKEND: ${{ matrix.backend }}
-          AMS_VULKAN_INCLUDE_DIR: /usr/include
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ env.BUILD_JOBS }}
         run: |
           chmod +x ./gradlew

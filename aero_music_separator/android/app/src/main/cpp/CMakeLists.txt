@@ -25,6 +25,17 @@ endif()
 
 set(AMS_VULKAN_INCLUDE_DIR "" CACHE PATH "Path containing Vulkan C++ headers (vulkan/vulkan.hpp)")
 if(GGML_VULKAN)
+  if(ANDROID AND AMS_VULKAN_INCLUDE_DIR)
+    file(TO_CMAKE_PATH "${AMS_VULKAN_INCLUDE_DIR}" AMS_VULKAN_INCLUDE_DIR_NORMALIZED)
+    if(AMS_VULKAN_INCLUDE_DIR_NORMALIZED MATCHES "^/usr/include(/|$)" OR
+       AMS_VULKAN_INCLUDE_DIR_NORMALIZED MATCHES "^/usr/local/include(/|$)")
+      message(WARNING
+        "Ignoring unsafe AMS_VULKAN_INCLUDE_DIR='${AMS_VULKAN_INCLUDE_DIR}' for Android cross-compilation. "
+        "Falling back to Vulkan-Headers fetch.")
+      set(AMS_VULKAN_INCLUDE_DIR "" CACHE PATH "Path containing Vulkan C++ headers (vulkan/vulkan.hpp)" FORCE)
+    endif()
+  endif()
+
   if(NOT AMS_VULKAN_INCLUDE_DIR OR NOT EXISTS "${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
     message(STATUS "Vulkan headers not found locally. Fetching Vulkan-Headers from GitHub...")
     include(FetchContent)
@@ -42,13 +53,13 @@ if(GGML_VULKAN)
       "Vulkan C++ headers not found at AMS_VULKAN_INCLUDE_DIR='${AMS_VULKAN_INCLUDE_DIR}'. "
       "Expected ${AMS_VULKAN_INCLUDE_DIR}/vulkan/vulkan.hpp")
   endif()
-  
-  # On Android cross-compilation, host include dirs like /usr/include can be
-  # treated as implicit by CMake and dropped from target include flags.
-  # Force the Vulkan-Hpp include path into C++ compile options for ggml-vulkan.
-  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-I${AMS_VULKAN_INCLUDE_DIR}>)
-  include_directories(BEFORE "${AMS_VULKAN_INCLUDE_DIR}")
+
   set(Vulkan_INCLUDE_DIR "${AMS_VULKAN_INCLUDE_DIR}" CACHE PATH "Vulkan include dir" FORCE)
 endif()
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../../../../native" native_build)
+
+if(GGML_VULKAN AND TARGET ggml-vulkan AND AMS_VULKAN_INCLUDE_DIR)
+  # Scope Vulkan-Hpp include path only to the Vulkan backend target.
+  target_include_directories(ggml-vulkan PRIVATE "${AMS_VULKAN_INCLUDE_DIR}")
+endif()
