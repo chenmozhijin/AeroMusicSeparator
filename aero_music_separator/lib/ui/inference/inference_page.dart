@@ -18,6 +18,7 @@ import '../../core/separation/result_cache_manager.dart';
 import '../../core/separation/separation_models.dart';
 import '../../core/separation/separation_service.dart';
 import '../../core/settings/app_settings_store.dart';
+import '../../core/storage/managed_file_store.dart';
 
 enum ChunkOverlapMode { auto, custom }
 
@@ -73,6 +74,7 @@ class _InferencePageState extends State<InferencePage> {
   InputPrepareService _prepareService = InputPrepareService();
   final AppSettingsStore _settingsStore = AppSettingsStore();
   final FileAccessService _fileAccessService = FileAccessService();
+  final ManagedFileStore _managedFileStore = ManagedFileStore();
   final ModelDefaultsService _modelDefaultsService = ModelDefaultsService();
   final ResultCacheManager _resultCacheManager = ResultCacheManager();
   final ExportFileService _exportFileService = ExportFileService();
@@ -118,6 +120,8 @@ class _InferencePageState extends State<InferencePage> {
   AppLocalizations get _l10n => AppLocalizations.of(context)!;
 
   bool get _nativeRuntimeSupported => AmsNative.isRuntimeSupportedPlatform;
+  bool get _isMobilePlatform => Platform.isAndroid || Platform.isIOS;
+  bool get _allowManualModelPathInput => !_isMobilePlatform;
 
   String get _nativeUnsupportedMessage => _l10n.nativeRuntimeUnsupported;
 
@@ -265,7 +269,15 @@ class _InferencePageState extends State<InferencePage> {
   }
 
   Future<void> _loadSettings() async {
-    final modelPath = await _settingsStore.readLastModelPath();
+    String? modelPath;
+    try {
+      modelPath = await _settingsStore.migrateLastModelPath(
+        migrate: _managedFileStore.migrateStoredModelPath,
+      );
+    } catch (e) {
+      _appendLog('ffi_read(model): failed to migrate stored model path: $e');
+      modelPath = await _settingsStore.readLastModelPath();
+    }
     if (!mounted) {
       return;
     }
@@ -315,10 +327,11 @@ class _InferencePageState extends State<InferencePage> {
       return;
     }
     try {
-      final path = await _fileAccessService.pickModelFilePath();
-      if (path == null || path.trim().isEmpty) {
+      final picked = await _fileAccessService.pickModelFile();
+      if (picked == null) {
         return;
       }
+      final path = await _managedFileStore.importModel(picked);
       _modelPathController.text = path;
       await _settingsStore.writeLastModelPath(path);
       _updateState(() {
@@ -342,15 +355,17 @@ class _InferencePageState extends State<InferencePage> {
       return;
     }
     try {
-      final path = await _fileAccessService.pickAudioFilePath();
-      if (path == null || path.trim().isEmpty) {
+      final picked = await _fileAccessService.pickAudioFile();
+      if (picked == null) {
         return;
       }
-      _sourceInputPath = path;
-      _inputPathController.text = path;
-      _outputPrefixController.text = _defaultOutputPrefixForPath(path);
+      final importedPath = await _managedFileStore.importInputAudio(picked);
+      await _managedFileStore.cleanupOldInputs();
+      _sourceInputPath = importedPath;
+      _inputPathController.text = importedPath;
+      _outputPrefixController.text = _defaultOutputPrefixForName(picked.name);
       _stemItems.clear();
-      await _prepareInput(path);
+      await _prepareInput(importedPath);
     } catch (e) {
       _reportError(_l10n.logInputSelectionFailed('$e'));
     }
@@ -364,6 +379,10 @@ class _InferencePageState extends State<InferencePage> {
 
   String _defaultOutputPrefixForPath(String inputPath) {
     final name = File(inputPath).uri.pathSegments.last;
+    return _defaultOutputPrefixForName(name);
+  }
+
+  String _defaultOutputPrefixForName(String name) {
     if (name.isEmpty) {
       return 'separated';
     }
@@ -735,6 +754,15 @@ class _InferencePageState extends State<InferencePage> {
       _updateState(() {
         _exporting = true;
       });
+      if (_isMobilePlatform) {
+        final exported = await _exportFileService.exportViaSystemDialog(
+          sourcePath: item.path,
+          suggestedName: item.fileName,
+          extension: item.extensionWithoutDot,
+        );
+        _appendLog(_l10n.logSavedStem(exported));
+        return;
+      }
       final path = await _fileAccessService.pickSaveFilePath(
         suggestedName: item.fileName,
         extension: item.extensionWithoutDot,
@@ -748,6 +776,8 @@ class _InferencePageState extends State<InferencePage> {
         destinationPath: path,
       );
       _appendLog(_l10n.logSavedStem(saved));
+    } on ExportCancelledException {
+      _appendLog(_l10n.logSaveCancelled(item.fileName));
     } catch (e) {
       _reportError(_l10n.logSaveStemFailed(item.fileName, '$e'));
     } finally {
@@ -783,6 +813,11 @@ class _InferencePageState extends State<InferencePage> {
       _exporting = true;
     });
     try {
+      if (Platform.isIOS) {
+        _appendLog(_l10n.logDirectoryExportUnavailable);
+        await _exportBySaveDialogs(stems);
+        return;
+      }
       String? exportDir;
       try {
         exportDir = await _fileAccessService.pickExportDirectory();
@@ -794,6 +829,13 @@ class _InferencePageState extends State<InferencePage> {
 
       if (exportDir == null || exportDir.trim().isEmpty) {
         _appendLog(_l10n.logExportCancelled);
+        return;
+      }
+      if (Platform.isAndroid && !await _isWritableDirectory(exportDir)) {
+        _appendLog(
+          'pick_destination: selected directory is not writable, falling back to Save As.',
+        );
+        await _exportBySaveDialogs(stems);
         return;
       }
       await _exportToDirectory(stems, exportDir);
@@ -822,8 +864,45 @@ class _InferencePageState extends State<InferencePage> {
     }
   }
 
+  Future<bool> _isWritableDirectory(String path) async {
+    if (path.trim().isEmpty || path.trim() == Platform.pathSeparator) {
+      return false;
+    }
+    final dir = Directory(path);
+    if (!await dir.exists()) {
+      return false;
+    }
+    final probePath =
+        '${dir.path}${Platform.pathSeparator}.ams_write_probe_'
+        '${DateTime.now().microsecondsSinceEpoch}';
+    final probe = File(probePath);
+    try {
+      await probe.writeAsString('probe');
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      if (await probe.exists()) {
+        await probe.delete();
+      }
+    }
+  }
+
   Future<void> _exportBySaveDialogs(List<_StemItem> stems) async {
     for (final stem in stems) {
+      if (_isMobilePlatform) {
+        try {
+          final exported = await _exportFileService.exportViaSystemDialog(
+            sourcePath: stem.path,
+            suggestedName: stem.fileName,
+            extension: stem.extensionWithoutDot,
+          );
+          _appendLog(_l10n.logSavedStem(exported));
+        } on ExportCancelledException {
+          _appendLog(_l10n.logSkippedStem(stem.fileName));
+        }
+        continue;
+      }
       final savePath = await _fileAccessService.pickSaveFilePath(
         suggestedName: stem.fileName,
         extension: stem.extensionWithoutDot,
@@ -1090,17 +1169,20 @@ class _InferencePageState extends State<InferencePage> {
               Expanded(
                 child: TextField(
                   controller: _modelPathController,
+                  readOnly: !_allowManualModelPathInput,
                   decoration: InputDecoration(labelText: l10n.modelPathLabel),
-                  onSubmitted: (value) {
-                    unawaited(_settingsStore.writeLastModelPath(value));
-                    _updateState(() {
-                      _modelDefaults = null;
-                      _modelDefaultsPath = null;
-                    });
-                    if (_nativeRuntimeSupported) {
-                      unawaited(_loadModelDefaultsIfNeeded(force: true));
-                    }
-                  },
+                  onSubmitted: _allowManualModelPathInput
+                      ? (value) {
+                          unawaited(_settingsStore.writeLastModelPath(value));
+                          _updateState(() {
+                            _modelDefaults = null;
+                            _modelDefaultsPath = null;
+                          });
+                          if (_nativeRuntimeSupported) {
+                            unawaited(_loadModelDefaultsIfNeeded(force: true));
+                          }
+                        }
+                      : null,
                 ),
               ),
               const SizedBox(width: 12),

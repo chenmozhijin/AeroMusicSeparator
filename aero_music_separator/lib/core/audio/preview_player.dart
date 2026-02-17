@@ -11,6 +11,9 @@ class PreviewPlayer {
     _durationController.add(Duration.zero);
   }
 
+  static bool _mediaKitInitialized = false;
+  static Object? _mediaKitInitializationError;
+
   Player? _player;
 
   final StreamController<PreviewPlaybackState> _stateController =
@@ -96,6 +99,8 @@ class PreviewPlayer {
   }
 
   void _ensurePlayerInitialized() {
+    _ensureMediaKitInitialized();
+
     final existing = _player;
     if (existing != null) {
       return;
@@ -134,6 +139,27 @@ class PreviewPlayer {
       _isCompleted = false;
       _emitState();
     });
+  }
+
+  void _ensureMediaKitInitialized() {
+    if (_mediaKitInitialized) {
+      return;
+    }
+
+    final previousError = _mediaKitInitializationError;
+    if (previousError != null) {
+      throw StateError(
+        'MediaKit initialization failed earlier: $previousError',
+      );
+    }
+
+    try {
+      MediaKit.ensureInitialized();
+      _mediaKitInitialized = true;
+    } catch (error) {
+      _mediaKitInitializationError = error;
+      throw StateError('MediaKit initialization failed: $error');
+    }
   }
 
   void _emitState() {

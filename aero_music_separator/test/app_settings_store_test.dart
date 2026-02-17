@@ -28,4 +28,23 @@ void main() {
     await store.writeLocaleOverride(null);
     expect(await store.readLocaleOverride(), isNull);
   });
+
+  test('AppSettingsStore migrates last model path and clears invalid value', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'last_model_path': '/legacy/model.gguf',
+    });
+    final store = AppSettingsStore();
+
+    final migrated = await store.migrateLastModelPath(
+      migrate: (path) async => '/managed/active.gguf',
+    );
+    expect(migrated, '/managed/active.gguf');
+    expect(await store.readLastModelPath(), '/managed/active.gguf');
+
+    final cleared = await store.migrateLastModelPath(
+      migrate: (path) async => null,
+    );
+    expect(cleared, isNull);
+    expect(await store.readLastModelPath(), isNull);
+  });
 }

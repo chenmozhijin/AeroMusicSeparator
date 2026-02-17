@@ -157,8 +157,38 @@ class AmsNative implements AmsPrepareNativeApi, AmsSeparationNativeApi {
     throw NativeFfiException(resolvedMessage, code);
   }
 
+  void _ensureReadableFilePath(
+    String path, {
+    required String stage,
+    required String subject,
+  }) {
+    final file = File(path);
+    if (!file.existsSync()) {
+      throw NativeFfiException(
+        '$stage: $subject file not found: $path',
+        AmsNativeStatus.invalidArg,
+      );
+    }
+    RandomAccessFile? handle;
+    try {
+      handle = file.openSync(mode: FileMode.read);
+    } catch (error) {
+      throw NativeFfiException(
+        '$stage: $subject file is not readable: $path ($error)',
+        AmsNativeStatus.invalidArg,
+      );
+    } finally {
+      handle?.closeSync();
+    }
+  }
+
   @override
   int openEngine(String modelPath, AmsBackend backend) {
+    _ensureReadableFilePath(
+      modelPath,
+      stage: 'ffi_read',
+      subject: 'model',
+    );
     final modelPathPtr = modelPath.toNativeUtf8();
     final outEngine = calloc<ffi.Uint64>();
     try {
@@ -209,6 +239,11 @@ class AmsNative implements AmsPrepareNativeApi, AmsSeparationNativeApi {
     required String workDir,
     String outputPrefix = 'input',
   }) {
+    _ensureReadableFilePath(
+      inputPath,
+      stage: 'ffi_read',
+      subject: 'input',
+    );
     final inputPathPtr = inputPath.toNativeUtf8();
     final workDirPtr = workDir.toNativeUtf8();
     final outputPrefixPtr = outputPrefix.toNativeUtf8();
@@ -292,6 +327,15 @@ class AmsNative implements AmsPrepareNativeApi, AmsSeparationNativeApi {
 
   @override
   int startJob(int engineHandle, SeparationRequest request) {
+    final modelInputPath = (request.preparedInputPath != null &&
+            request.preparedInputPath!.trim().isNotEmpty)
+        ? request.preparedInputPath!.trim()
+        : request.inputPath;
+    _ensureReadableFilePath(
+      modelInputPath,
+      stage: 'ffi_read',
+      subject: 'model_input',
+    );
     final inputPath = request.inputPath.toNativeUtf8();
     final outputDir = request.outputDir.toNativeUtf8();
     final outputPrefix = request.outputPrefix.toNativeUtf8();

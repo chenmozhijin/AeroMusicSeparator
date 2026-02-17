@@ -27,6 +27,30 @@ class AppSettingsStore {
     await prefs.setString(_lastModelPathKey, trimmed);
   }
 
+  Future<void> clearLastModelPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastModelPathKey);
+  }
+
+  Future<String?> migrateLastModelPath({
+    required Future<String?> Function(String path) migrate,
+  }) async {
+    final current = await readLastModelPath();
+    if (current == null) {
+      return null;
+    }
+    final migrated = await migrate(current);
+    if (migrated == null || migrated.trim().isEmpty) {
+      await clearLastModelPath();
+      return null;
+    }
+    final trimmed = migrated.trim();
+    if (trimmed != current) {
+      await writeLastModelPath(trimmed);
+    }
+    return trimmed;
+  }
+
   Future<bool> readForceCpuEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_forceCpuEnabledKey) ?? false;

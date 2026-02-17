@@ -3,6 +3,18 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 
+class PickedSourceFile {
+  const PickedSourceFile({
+    required this.path,
+    required this.name,
+    this.identifier,
+  });
+
+  final String path;
+  final String name;
+  final String? identifier;
+}
+
 class FileAccessUnsupportedException implements Exception {
   const FileAccessUnsupportedException(this.message);
 
@@ -24,30 +36,38 @@ class FileAccessService {
     'wma',
   ];
 
-  Future<String?> pickModelFilePath() async {
+  Future<PickedSourceFile?> pickModelFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const <String>['gguf'],
       allowMultiple: false,
       dialogTitle: 'Select model file',
     );
-    if (result == null || result.files.isEmpty) {
-      return null;
-    }
-    return result.files.single.path;
+    return _resolveSinglePickedFile(result);
   }
 
-  Future<String?> pickAudioFilePath() async {
+  Future<PickedSourceFile?> pickAudioFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: _audioExtensions,
       allowMultiple: false,
       dialogTitle: 'Select source audio file',
     );
+    return _resolveSinglePickedFile(result);
+  }
+
+  PickedSourceFile? _resolveSinglePickedFile(FilePickerResult? result) {
     if (result == null || result.files.isEmpty) {
       return null;
     }
-    return result.files.single.path;
+    final file = result.files.single;
+    final path = file.path;
+    if (path == null || path.trim().isEmpty) {
+      throw const FileAccessUnsupportedException(
+        'Unable to resolve a local file path from the selected document.',
+      );
+    }
+    return PickedSourceFile(path: path, name: file.name, identifier: file.identifier);
   }
 
   Future<String?> pickExportDirectory() async {

@@ -11,9 +11,36 @@ import 'ui/shell/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized();
-  await registerThirdPartyLicenses();
   runApp(const AeroMusicSeparatorApp());
+  unawaited(_bootstrapApp());
+}
+
+Future<void> _bootstrapApp() async {
+  try {
+    MediaKit.ensureInitialized();
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'bootstrap',
+        context: ErrorDescription('while initializing media runtime'),
+      ),
+    );
+  }
+
+  try {
+    await registerThirdPartyLicenses();
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'bootstrap',
+        context: ErrorDescription('while registering third-party licenses'),
+      ),
+    );
+  }
 }
 
 class AeroMusicSeparatorApp extends StatefulWidget {
