@@ -75,6 +75,8 @@ BASE_CFLAGS="-fPIC"
 if [[ "${ABI}" == "armeabi-v7a" ]]; then
   BASE_CFLAGS="${BASE_CFLAGS} -march=armv7-a -mfloat-abi=softfp -mfpu=neon"
 fi
+# Keep FFmpeg internals local when static archives are linked into our shared JNI library.
+FFMPEG_CFLAGS="${BASE_CFLAGS} -fvisibility=hidden"
 
 build_lame \
   "${SRC_ROOT}" \
@@ -100,7 +102,7 @@ FFMPEG_FLAGS=(
   --ranlib="${RANLIB_RAW}"
   --strip="${STRIP_RAW}"
   --sysroot="${TOOLCHAIN}/sysroot"
-  --extra-cflags="-I${LAME_PREFIX}/include ${BASE_CFLAGS}"
+  --extra-cflags="-I${LAME_PREFIX}/include ${FFMPEG_CFLAGS}"
   --extra-ldflags="-L${LAME_PREFIX}/lib"
   --extra-libs="-lm"
   --enable-libmp3lame
