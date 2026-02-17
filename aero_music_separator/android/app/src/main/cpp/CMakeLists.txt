@@ -42,7 +42,7 @@ if(GGML_VULKAN)
     FetchContent_Declare(
       Vulkan-Headers
       GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-      GIT_TAG        v1.3.296.0
+      GIT_TAG        v1.4.343
     )
     FetchContent_MakeAvailable(Vulkan-Headers)
     set(AMS_VULKAN_INCLUDE_DIR "${vulkan-headers_SOURCE_DIR}/include" CACHE PATH "Vulkan include dir" FORCE)

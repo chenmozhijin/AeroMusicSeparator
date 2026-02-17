@@ -936,6 +936,271 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Setup Python (integration)
+        id: integration_setup_python
+        if: always()
+        continue-on-error: true
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install integration deps
+        id: integration_install_deps
+        if: always()
+        continue-on-error: true
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy soundfile huggingface_hub
+
+      - name: Prepare integration workspace (Unix)
+        id: integration_workspace_unix
+        if: ${{ always() && runner.os != 'Windows' }}
+        continue-on-error: true
+        shell: bash
+        run: mkdir -p .ci-integration
+
+      - name: Prepare integration workspace (Windows)
+        id: integration_workspace_windows
+        if: ${{ always() && runner.os == 'Windows' }}
+        continue-on-error: true
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path ".ci-integration" -Force | Out-Null
+
+      - name: Download integration model
+        id: integration_download_model
+        if: always()
+        continue-on-error: true
+        run: python aero_music_separator/native/tools/ci_download_gguf.py --repo chenmozhijin/BSRoformer-GGUF --output .ci-integration/model.gguf --metadata .ci-integration/model-meta.json
+
+      - name: Generate integration audio
+        id: integration_generate_audio
+        if: always()
+        continue-on-error: true
+        run: python BSRoformer.cpp/scripts/generate_test_audio.py --output .ci-integration/input.wav --duration 5.0 --sample-rate 44100
+
+      - name: Desktop integration (Linux/macOS)
+        id: integration_desktop_unix
+        if: ${{ always() && (matrix.platform == 'linux' || matrix.platform == 'macos') }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_path=".ci-integration/report-${{ matrix.id }}.json"
+          model_path=".ci-integration/model.gguf"
+          input_path=".ci-integration/input.wav"
+
+          backends="cpu"
+          if [ "${{ matrix.backend }}" = "vulkan" ]; then
+            backends="cpu,vulkan"
+          fi
+          if [ "${{ matrix.backend }}" = "cuda" ]; then
+            echo "::warning::Hosted runner has no NVIDIA driver; skipping CUDA runtime integration and running CPU only."
+          fi
+
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            lib_path="$(find aero_music_separator/build/linux/x64/release/bundle -type f -name 'libaero_separator_ffi.so' | head -n1)"
+            if [ -z "${lib_path}" ]; then
+              echo "Linux FFI library not found for integration test"
+              exit 1
+            fi
+          else
+            app_path="$(find aero_music_separator/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -n1)"
+            if [ -z "${app_path}" ]; then
+              echo "macOS app artifact not found for integration test"
+              exit 1
+            fi
+            lib_path="${app_path}/Contents/Frameworks/libaero_separator_ffi.dylib"
+            if [ ! -f "${lib_path}" ]; then
+              echo "macOS FFI dylib not found for integration test"
+              exit 1
+            fi
+          fi
+
+          python3 aero_music_separator/native/tools/ffi_pipeline_integration.py \
+            --library "${lib_path}" \
+            --model "${model_path}" \
+            --input "${input_path}" \
+            --backends "${backends}" \
+            --min-bytes 1000 \
+            --duration-tolerance-ms 300 \
+            --report "${report_path}"
+
+      - name: Desktop integration (Windows)
+        id: integration_desktop_windows
+        if: ${{ always() && matrix.platform == 'windows' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $PWD ".ci-integration/report-${{ matrix.id }}.json"
+          $modelPath = Join-Path $PWD ".ci-integration/model.gguf"
+          $inputPath = Join-Path $PWD ".ci-integration/input.wav"
+
+          $releaseDir = Resolve-Path "aero_music_separator/build/windows/x64/runner/Release"
+          $ffi = Get-ChildItem $releaseDir -Recurse -Filter "aero_separator_ffi.dll" | Select-Object -First 1
+          if (-not $ffi) {
+            throw "Windows FFI library not found for integration test"
+          }
+
+          $dllDirs = @()
+          $dllDirs += $ffi.Directory.FullName
+
+          $ffmpegBin = Join-Path $PWD "aero_music_separator/native/third_party/ffmpeg/windows/x64/bin"
+          if (Test-Path $ffmpegBin) {
+            $dllDirs += $ffmpegBin
+            $env:AMS_FFMPEG_BIN_DIR = $ffmpegBin
+          }
+
+          Get-ChildItem $releaseDir -Recurse -Filter "*.dll" | ForEach-Object {
+            $dllDirs += $_.DirectoryName
+          }
+          $dllDirs = $dllDirs | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+          $env:AMS_DLL_DIRS = [string]::Join([IO.Path]::PathSeparator, $dllDirs)
+
+          $backends = "cpu"
+          if ("${{ matrix.backend }}" -eq "vulkan") {
+            $backends = "cpu,vulkan"
+          } elseif ("${{ matrix.backend }}" -eq "cuda") {
+            Write-Host "::warning::Hosted runner has no NVIDIA driver; skipping CUDA runtime integration and running CPU only."
+          }
+
+          python aero_music_separator/native/tools/ffi_pipeline_integration.py `
+            --library $ffi.FullName `
+            --model $modelPath `
+            --input $inputPath `
+            --backends $backends `
+            --min-bytes 1000 `
+            --duration-tolerance-ms 300 `
+            --report $reportPath
+
+      - name: Android emulator integration
+        id: integration_android_emulator
+        if: ${{ always() && matrix.platform == 'android' }}
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          script: |
+            set -euo pipefail
+            cd "$GITHUB_WORKSPACE"
+
+            python -m http.server 18080 --bind 127.0.0.1 --directory .ci-integration > .ci-integration/android-http.log 2>&1 &
+            server_pid=$!
+            trap 'kill ${server_pid} || true' EXIT
+
+            cd aero_music_separator
+            flutter test integration_test/native_pipeline_test.dart \
+              -d emulator-5554 \
+              --dart-define=AMS_IT_MODEL_URL=http://10.0.2.2:18080/model.gguf \
+              --dart-define=AMS_IT_AUDIO_URL=http://10.0.2.2:18080/input.wav \
+              --dart-define=AMS_IT_BACKENDS=cpu,vulkan \
+              --dart-define=AMS_IT_MIN_OUTPUT_BYTES=1000 \
+              --dart-define=AMS_IT_DURATION_TOLERANCE_MS=300 \
+              2>&1 | tee ../.ci-integration/android-integration.log
+
+      - name: iOS simulator integration
+        id: integration_ios_simulator
+        if: ${{ always() && matrix.platform == 'ios' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${GITHUB_WORKSPACE}"
+
+          python3 -m http.server 18081 --bind 127.0.0.1 --directory .ci-integration > .ci-integration/ios-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill ${server_pid} || true' EXIT
+
+          device_id="$(python3 - <<'PY'
+import json
+import subprocess
+
+raw = subprocess.check_output(
+    ["xcrun", "simctl", "list", "devices", "available", "--json"],
+    text=True,
+)
+payload = json.loads(raw)
+for runtime, devices in payload.get("devices", {}).items():
+    if "iOS" not in runtime:
+        continue
+    for dev in devices:
+        if dev.get("isAvailable") and str(dev.get("name", "")).startswith("iPhone"):
+            print(dev["udid"])
+            raise SystemExit(0)
+raise SystemExit("No available iOS simulator device found")
+PY
+)"
+
+          xcrun simctl boot "${device_id}" || true
+          xcrun simctl bootstatus "${device_id}" -b
+
+          cd aero_music_separator
+          flutter test integration_test/native_pipeline_test.dart \
+            -d "${device_id}" \
+            --dart-define=AMS_IT_MODEL_URL=http://127.0.0.1:18081/model.gguf \
+            --dart-define=AMS_IT_AUDIO_URL=http://127.0.0.1:18081/input.wav \
+            --dart-define=AMS_IT_BACKENDS=cpu \
+            --dart-define=AMS_IT_MIN_OUTPUT_BYTES=1000 \
+            --dart-define=AMS_IT_DURATION_TOLERANCE_MS=300 \
+            2>&1 | tee ../.ci-integration/ios-integration.log
+
+      - name: Integration warning summary
+        id: integration_warning_summary
+        if: always()
+        shell: pwsh
+        env:
+          OUTCOME_SETUP_PY: ${{ steps.integration_setup_python.outcome }}
+          OUTCOME_INSTALL_DEPS: ${{ steps.integration_install_deps.outcome }}
+          OUTCOME_WORKSPACE_UNIX: ${{ steps.integration_workspace_unix.outcome }}
+          OUTCOME_WORKSPACE_WINDOWS: ${{ steps.integration_workspace_windows.outcome }}
+          OUTCOME_DOWNLOAD_MODEL: ${{ steps.integration_download_model.outcome }}
+          OUTCOME_GENERATE_AUDIO: ${{ steps.integration_generate_audio.outcome }}
+          OUTCOME_DESKTOP_UNIX: ${{ steps.integration_desktop_unix.outcome }}
+          OUTCOME_DESKTOP_WINDOWS: ${{ steps.integration_desktop_windows.outcome }}
+          OUTCOME_ANDROID: ${{ steps.integration_android_emulator.outcome }}
+          OUTCOME_IOS: ${{ steps.integration_ios_simulator.outcome }}
+        run: |
+          $failOutcomes = @('failure', 'cancelled', 'timed_out')
+          $checks = @{
+            'integration_setup_python'    = $env:OUTCOME_SETUP_PY
+            'integration_install_deps'    = $env:OUTCOME_INSTALL_DEPS
+            'integration_workspace_unix'  = $env:OUTCOME_WORKSPACE_UNIX
+            'integration_workspace_windows' = $env:OUTCOME_WORKSPACE_WINDOWS
+            'integration_download_model'  = $env:OUTCOME_DOWNLOAD_MODEL
+            'integration_generate_audio'  = $env:OUTCOME_GENERATE_AUDIO
+            'integration_desktop_unix'    = $env:OUTCOME_DESKTOP_UNIX
+            'integration_desktop_windows' = $env:OUTCOME_DESKTOP_WINDOWS
+            'integration_android_emulator' = $env:OUTCOME_ANDROID
+            'integration_ios_simulator'   = $env:OUTCOME_IOS
+          }
+
+          $warned = $false
+          foreach ($entry in $checks.GetEnumerator()) {
+            $name = $entry.Key
+            $outcome = $entry.Value
+            if ($failOutcomes -contains $outcome) {
+              Write-Host "::warning::Integration step '$name' failed with outcome '$outcome'."
+              $warned = $true
+            }
+          }
+
+          if (-not $warned) {
+            Write-Host "Integration summary: no failing outcomes (skipped is allowed)."
+          }
+
+      - name: Upload integration reports
+        id: integration_upload_reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-report-${{ matrix.id }}
+          path: .ci-integration/**
+          if-no-files-found: warn
+          retention-days: 7
+
   compliance-bundle:
     name: compliance-bundle
     needs: prepare-ffmpeg
