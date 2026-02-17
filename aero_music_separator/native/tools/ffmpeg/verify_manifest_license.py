@@ -64,6 +64,9 @@ def main() -> int:
         expect_manifest_file(manifest, "licenses/FFmpeg-LGPL.txt")
         expect_manifest_file(manifest, "licenses/LAME-LICENSE.txt")
 
+    if platform in ("android", "ios"):
+        expect_manifest_file_suffix(manifest, "lib/libmp3lame.a")
+
     print(f"[ffmpeg-license-verify] OK: {manifest_path}")
     return 0
 

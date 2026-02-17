@@ -133,7 +133,59 @@ build_lame() {
   make -C libmp3lame -j"${AMS_JOBS}"
   make -C include install
   make -C libmp3lame install
+
+  if [[ ! -f "${install_prefix}/lib/libmp3lame.a" && -f "${lame_src}/libmp3lame/.libs/libmp3lame.a" ]]; then
+    ensure_dir "${install_prefix}/lib"
+    cp -f "${lame_src}/libmp3lame/.libs/libmp3lame.a" "${install_prefix}/lib/libmp3lame.a"
+  fi
+
+  if [[ ! -f "${install_prefix}/lib/libmp3lame.a" ]]; then
+    echo "[ffmpeg-tools] build_lame did not produce ${install_prefix}/lib/libmp3lame.a" >&2
+    exit 1
+  fi
+
   popd >/dev/null
+}
+
+resolve_lame_static_archive() {
+  local install_prefix="$1"
+  local candidates=(
+    "${install_prefix}/lib/libmp3lame.a"
+    "${install_prefix}/lib64/libmp3lame.a"
+    "${install_prefix}/lib/libmp3lame/libmp3lame.a"
+    "${install_prefix}/lib/libmp3lame/.libs/libmp3lame.a"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  local discovered
+  discovered="$(find "${install_prefix}" -type f -name "libmp3lame.a" 2>/dev/null | head -n1 || true)"
+  if [[ -n "${discovered}" ]]; then
+    printf '%s\n' "${discovered}"
+    return 0
+  fi
+
+  return 1
+}
+
+stage_lame_static_archive() {
+  local install_prefix="$1"
+  local out_root="$2"
+  local archive_src=""
+
+  if ! archive_src="$(resolve_lame_static_archive "${install_prefix}")"; then
+    echo "[ffmpeg-tools] libmp3lame.a not found under ${install_prefix}" >&2
+    exit 1
+  fi
+
+  ensure_dir "${out_root}/lib"
+  cp -f "${archive_src}" "${out_root}/lib/libmp3lame.a"
 }
 
 ffmpeg_feature_flags() {

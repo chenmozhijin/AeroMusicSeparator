@@ -115,7 +115,7 @@ fi
 configure_ffmpeg "${FFMPEG_SRC}" "${FFMPEG_FLAGS[@]}"
 
 build_ffmpeg "${FFMPEG_SRC}"
-cp -f "${LAME_PREFIX}/lib/libmp3lame.a" "${OUT_ROOT}/lib/libmp3lame.a"
+stage_lame_static_archive "${LAME_PREFIX}" "${OUT_ROOT}"
 stage_third_party_licenses "${FFMPEG_SRC}" "${SRC_ROOT}/lame" "${OUT_ROOT}"
 
 python3 "${SCRIPT_DIR}/package_manifest.py" \
