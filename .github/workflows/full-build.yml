@@ -218,7 +218,7 @@ jobs:
             platform: android
             backend: vulkan
             artifact_name: app-android-vulkan-release
-            artifact_path: aero_music_separator/android/app/build/outputs/**
+            artifact_path: aero_music_separator/build/app/outputs/**
           - id: linux-vulkan-release
             os: ubuntu-24.04
             platform: linux
@@ -720,12 +720,28 @@ jobs:
         if: matrix.platform == 'android'
         shell: bash
         run: |
-          ffi_lib="$(find aero_music_separator/android/app/build -type f -name 'libaero_separator_ffi.so' | head -n1 || true)"
+          android_build_dir=""
+          for candidate in \
+            "aero_music_separator/build/app" \
+            "aero_music_separator/android/app/build"; do
+            if [ -d "${candidate}" ]; then
+              android_build_dir="${candidate}"
+              break
+            fi
+          done
+          if [ -z "${android_build_dir}" ]; then
+            echo "Android app build directory not found"
+            echo "Checked: aero_music_separator/build/app and aero_music_separator/android/app/build"
+            exit 1
+          fi
+          echo "Inspecting Android build outputs in: ${android_build_dir}"
+
+          ffi_lib="$(find "${android_build_dir}" -type f -name 'libaero_separator_ffi.so' | head -n1 || true)"
           if [ -z "${ffi_lib}" ]; then
             echo "Android FFI library not found in Gradle outputs"
             exit 1
           fi
-          backend_lib="$(find aero_music_separator/android/app/build -type f -name 'libggml-vulkan.so' | head -n1 || true)"
+          backend_lib="$(find "${android_build_dir}" -type f -name 'libggml-vulkan.so' | head -n1 || true)"
           if [ -z "${backend_lib}" ]; then
             echo "Expected Android Vulkan backend library not found"
             exit 1
