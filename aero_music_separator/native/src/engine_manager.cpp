@@ -72,8 +72,7 @@ void EngineManager::ApplyBackendPreference(int32_t backend_preference) {
       std::string("AndroidCPUOnly(request=") +
       BackendPreferenceName(backend_preference) + ")";
   LogBackendPolicy(policy.c_str());
-  return;
-#endif
+#else
 
   const bool force_cpu = backend_preference == AMS_BACKEND_CPU;
   if (force_cpu) {
@@ -105,6 +104,7 @@ void EngineManager::ApplyBackendPreference(int32_t backend_preference) {
       break;
   }
   LogBackendPolicy(policy);
+#endif
 }
 
 ams_code_t EngineManager::Open(const std::string& model_path,
