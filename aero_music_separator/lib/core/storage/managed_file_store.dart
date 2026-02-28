@@ -22,6 +22,21 @@ class ManagedFileStore {
   static const String _activeModelFileName = 'active.gguf';
   static const String _inputCacheDirName = 'input_cache';
 
+  Future<String> resolveModelForSelection(
+    PickedSourceFile source, {
+    required bool cacheModel,
+  }) async {
+    if (cacheModel) {
+      return importModel(source);
+    }
+    final sourceFile = await _requireReadableFile(
+      source.path,
+      stage: 'ffi_read',
+      subject: 'model',
+    );
+    return sourceFile.path;
+  }
+
   Future<String> importModel(PickedSourceFile source) async {
     final sourceFile = await _requireReadableFile(
       source.path,
@@ -108,7 +123,10 @@ class ManagedFileStore {
     }
   }
 
-  Future<String?> migrateStoredModelPath(String? storedPath) async {
+  Future<String?> migrateStoredModelPath(
+    String? storedPath, {
+    bool cacheModel = true,
+  }) async {
     if (storedPath == null || storedPath.trim().isEmpty) {
       return null;
     }
@@ -117,18 +135,19 @@ class ManagedFileStore {
     if (!await file.exists()) {
       return null;
     }
-    if (!await isManagedModelPath(trimmed)) {
-      final name = _fileNameFromPath(trimmed);
-      return importModel(
-        PickedSourceFile(path: trimmed, name: name),
-      );
-    }
     try {
       await _requireReadableFile(trimmed, stage: 'ffi_read', subject: 'model');
-      return trimmed;
     } on FileSystemException {
       return null;
     }
+    if (!cacheModel) {
+      return trimmed;
+    }
+    if (!await isManagedModelPath(trimmed)) {
+      final name = _fileNameFromPath(trimmed);
+      return importModel(PickedSourceFile(path: trimmed, name: name));
+    }
+    return trimmed;
   }
 
   Future<bool> isManagedModelPath(String path) async {
@@ -204,7 +223,8 @@ class ManagedFileStore {
       if (entry is! File) {
         continue;
       }
-      if (_normalizePath(entry.path) == _normalizePath(await _activeModelPath())) {
+      if (_normalizePath(entry.path) ==
+          _normalizePath(await _activeModelPath())) {
         continue;
       }
       await entry.delete();

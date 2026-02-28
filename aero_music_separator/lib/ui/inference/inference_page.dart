@@ -272,7 +272,10 @@ class _InferencePageState extends State<InferencePage> {
     String? modelPath;
     try {
       modelPath = await _settingsStore.migrateLastModelPath(
-        migrate: _managedFileStore.migrateStoredModelPath,
+        migrate: (path) => _managedFileStore.migrateStoredModelPath(
+          path,
+          cacheModel: _isMobilePlatform,
+        ),
       );
     } catch (e) {
       _appendLog('ffi_read(model): failed to migrate stored model path: $e');
@@ -331,7 +334,10 @@ class _InferencePageState extends State<InferencePage> {
       if (picked == null) {
         return;
       }
-      final path = await _managedFileStore.importModel(picked);
+      final path = await _managedFileStore.resolveModelForSelection(
+        picked,
+        cacheModel: _isMobilePlatform,
+      );
       _modelPathController.text = path;
       await _settingsStore.writeLastModelPath(path);
       _updateState(() {

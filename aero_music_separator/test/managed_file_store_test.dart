@@ -52,9 +52,9 @@ void main() {
     expect(modelFiles.length, 1);
   });
 
-  test('ManagedFileStore imports audio and cleans up old cache files', () async {
-    final supportRoot = await createTempRoot('support_audio');
-    final tempRoot = await createTempRoot('temp_audio');
+  test('ManagedFileStore resolves model path without caching', () async {
+    final supportRoot = await createTempRoot('support_direct');
+    final tempRoot = await createTempRoot('temp_direct');
     addTearDown(() async {
       if (await supportRoot.exists()) {
         await supportRoot.delete(recursive: true);
@@ -67,55 +67,129 @@ void main() {
     final store = ManagedFileStore(
       appSupportDirProvider: () async => supportRoot,
       tempDirProvider: () async => tempRoot,
-      maxCachedInputFiles: 2,
     );
-    final source = File('${tempRoot.path}${Platform.pathSeparator}input_source.wav');
-    await source.writeAsBytes(List<int>.filled(128, 7));
+    final source = File('${tempRoot.path}${Platform.pathSeparator}direct.gguf');
+    await source.writeAsString('model-direct');
 
-    final importedPaths = <String>[];
-    for (var i = 0; i < 3; i++) {
-      importedPaths.add(
-        await store.importInputAudio(
-          PickedSourceFile(path: source.path, name: 'track_$i.wav'),
-        ),
+    final resolvedPath = await store.resolveModelForSelection(
+      PickedSourceFile(path: source.path, name: source.uri.pathSegments.last),
+      cacheModel: false,
+    );
+
+    expect(File(resolvedPath).absolute.path, source.absolute.path);
+    final activeModelPath = await store.activeModelPath();
+    expect(await File(activeModelPath).exists(), isFalse);
+  });
+
+  test(
+    'ManagedFileStore imports audio and cleans up old cache files',
+    () async {
+      final supportRoot = await createTempRoot('support_audio');
+      final tempRoot = await createTempRoot('temp_audio');
+      addTearDown(() async {
+        if (await supportRoot.exists()) {
+          await supportRoot.delete(recursive: true);
+        }
+        if (await tempRoot.exists()) {
+          await tempRoot.delete(recursive: true);
+        }
+      });
+
+      final store = ManagedFileStore(
+        appSupportDirProvider: () async => supportRoot,
+        tempDirProvider: () async => tempRoot,
+        maxCachedInputFiles: 2,
       );
-      await Future<void>.delayed(const Duration(milliseconds: 2));
-    }
-    await store.cleanupOldInputs();
+      final source = File(
+        '${tempRoot.path}${Platform.pathSeparator}input_source.wav',
+      );
+      await source.writeAsBytes(List<int>.filled(128, 7));
 
-    final inputDir = File(importedPaths.first).parent;
-    final remainingFiles = await inputDir
-        .list(followLinks: false)
-        .where((entity) => entity is File)
-        .cast<File>()
-        .toList();
-    expect(remainingFiles.length, lessThanOrEqualTo(2));
-    expect(await File(importedPaths.last).exists(), isTrue);
-  });
-
-  test('ManagedFileStore migrates legacy model path and clears invalid path', () async {
-    final supportRoot = await createTempRoot('support_migrate');
-    final tempRoot = await createTempRoot('temp_migrate');
-    addTearDown(() async {
-      if (await supportRoot.exists()) {
-        await supportRoot.delete(recursive: true);
+      final importedPaths = <String>[];
+      for (var i = 0; i < 3; i++) {
+        importedPaths.add(
+          await store.importInputAudio(
+            PickedSourceFile(path: source.path, name: 'track_$i.wav'),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 2));
       }
-      if (await tempRoot.exists()) {
-        await tempRoot.delete(recursive: true);
-      }
-    });
+      await store.cleanupOldInputs();
 
-    final store = ManagedFileStore(
-      appSupportDirProvider: () async => supportRoot,
-      tempDirProvider: () async => tempRoot,
-    );
-    final legacy = File('${tempRoot.path}${Platform.pathSeparator}legacy.gguf');
-    await legacy.writeAsString('legacy-model');
+      final inputDir = File(importedPaths.first).parent;
+      final remainingFiles = await inputDir
+          .list(followLinks: false)
+          .where((entity) => entity is File)
+          .cast<File>()
+          .toList();
+      expect(remainingFiles.length, lessThanOrEqualTo(2));
+      expect(await File(importedPaths.last).exists(), isTrue);
+    },
+  );
 
-    final migrated = await store.migrateStoredModelPath(legacy.path);
-    expect(migrated, isNotNull);
-    expect(await File(migrated!).exists(), isTrue);
-    expect(await store.isManagedModelPath(migrated), isTrue);
-    expect(await store.migrateStoredModelPath('does/not/exist.gguf'), isNull);
-  });
+  test(
+    'ManagedFileStore keeps legacy model path when cache migration is disabled',
+    () async {
+      final supportRoot = await createTempRoot('support_legacy_no_cache');
+      final tempRoot = await createTempRoot('temp_legacy_no_cache');
+      addTearDown(() async {
+        if (await supportRoot.exists()) {
+          await supportRoot.delete(recursive: true);
+        }
+        if (await tempRoot.exists()) {
+          await tempRoot.delete(recursive: true);
+        }
+      });
+
+      final store = ManagedFileStore(
+        appSupportDirProvider: () async => supportRoot,
+        tempDirProvider: () async => tempRoot,
+      );
+      final legacy = File(
+        '${tempRoot.path}${Platform.pathSeparator}legacy_direct.gguf',
+      );
+      await legacy.writeAsString('legacy-model');
+
+      final migrated = await store.migrateStoredModelPath(
+        legacy.path,
+        cacheModel: false,
+      );
+      expect(migrated, isNotNull);
+      expect(File(migrated!).absolute.path, legacy.absolute.path);
+
+      final activeModelPath = await store.activeModelPath();
+      expect(await File(activeModelPath).exists(), isFalse);
+    },
+  );
+
+  test(
+    'ManagedFileStore migrates legacy model path and clears invalid path',
+    () async {
+      final supportRoot = await createTempRoot('support_migrate');
+      final tempRoot = await createTempRoot('temp_migrate');
+      addTearDown(() async {
+        if (await supportRoot.exists()) {
+          await supportRoot.delete(recursive: true);
+        }
+        if (await tempRoot.exists()) {
+          await tempRoot.delete(recursive: true);
+        }
+      });
+
+      final store = ManagedFileStore(
+        appSupportDirProvider: () async => supportRoot,
+        tempDirProvider: () async => tempRoot,
+      );
+      final legacy = File(
+        '${tempRoot.path}${Platform.pathSeparator}legacy.gguf',
+      );
+      await legacy.writeAsString('legacy-model');
+
+      final migrated = await store.migrateStoredModelPath(legacy.path);
+      expect(migrated, isNotNull);
+      expect(await File(migrated!).exists(), isTrue);
+      expect(await store.isManagedModelPath(migrated), isTrue);
+      expect(await store.migrateStoredModelPath('does/not/exist.gguf'), isNull);
+    },
+  );
 }
