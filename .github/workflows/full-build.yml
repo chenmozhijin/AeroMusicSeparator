@@ -213,11 +213,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - id: android-vulkan-release
+          - id: android-cpu-release
             os: ubuntu-24.04
             platform: android
-            backend: vulkan
-            artifact_name: app-android-vulkan-release
+            backend: cpu
+            artifact_name: app-android-cpu-release
             artifact_path: aero_music_separator/build/app/outputs/**
           - id: linux-vulkan-release
             os: ubuntu-24.04
@@ -741,9 +741,23 @@ jobs:
             echo "Android FFI library not found in Gradle outputs"
             exit 1
           fi
-          backend_lib="$(find "${android_build_dir}" -type f -name 'libggml-vulkan.so' | head -n1 || true)"
-          if [ -z "${backend_lib}" ]; then
-            echo "Expected Android Vulkan backend library not found"
+          # Android is currently CPU-only by project policy; GPU backend checks are conditional.
+          if [ "${{ matrix.backend }}" = "vulkan" ]; then
+            backend_lib="$(find "${android_build_dir}" -type f -name 'libggml-vulkan.so' | head -n1 || true)"
+            if [ -z "${backend_lib}" ]; then
+              echo "Expected Android Vulkan backend library not found"
+              exit 1
+            fi
+          elif [ "${{ matrix.backend }}" = "cuda" ]; then
+            backend_lib="$(find "${android_build_dir}" -type f -name 'libggml-cuda.so' | head -n1 || true)"
+            if [ -z "${backend_lib}" ]; then
+              echo "Expected Android CUDA backend library not found"
+              exit 1
+            fi
+          elif [ "${{ matrix.backend }}" = "cpu" ]; then
+            echo "Android CPU-only backend selected; skipping GPU backend library assertions."
+          else
+            echo "Unsupported Android backend in matrix: '${{ matrix.backend }}'"
             exit 1
           fi
 
