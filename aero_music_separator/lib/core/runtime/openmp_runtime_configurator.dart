@@ -27,6 +27,11 @@ class OpenMpRuntimeConfigurator {
     _ffi.runtimeSetEnv('OMP_NUM_THREADS', '$threads');
     _ffi.runtimeSetEnv('OMP_THREAD_LIMIT', '$threads');
     _ffi.runtimeSetEnv('OMP_DYNAMIC', 'FALSE');
+    if (platform == TargetPlatform.android) {
+      _ffi.runtimeSetEnv('OMP_PROC_BIND', 'TRUE');
+      _ffi.runtimeSetEnv('OMP_PLACES', 'cores');
+      _ffi.runtimeSetEnv('KMP_BLOCKTIME', '0');
+    }
   }
 
   int _resolveThreadCount({
@@ -45,6 +50,21 @@ class OpenMpRuntimeConfigurator {
     }
 
     if (platform == TargetPlatform.android) {
+      if (forceCpu) {
+        switch (preset) {
+          case OpenMpPreset.auto:
+            return _clamp((cores * 0.40).floor(), 2, 4);
+          case OpenMpPreset.conservative:
+            return _clamp((cores * 0.50).floor(), 2, 5);
+          case OpenMpPreset.balanced:
+            return _clamp((cores * 0.66).floor(), 3, 6);
+          case OpenMpPreset.performance:
+            return _clamp((cores * 0.80).floor(), 4, 8);
+          case OpenMpPreset.disabled:
+            return 1;
+        }
+      }
+
       switch (preset) {
         case OpenMpPreset.auto:
         case OpenMpPreset.conservative:

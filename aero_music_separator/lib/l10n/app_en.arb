@@ -131,6 +131,7 @@
   "logInvalidChunkOverlap": "Chunk size and overlap must both be positive integers.",
   "logStartingTask": "Starting separation task with cached output...",
   "logTaskFinished": "Task finished. Results are cached and ready to preview/export.",
+  "logAndroidCpuOnlyPolicy": "Android CPU-only policy is active. Vulkan is disabled.",
   "logInferenceElapsed": "Inference elapsed: {elapsed}",
   "@logInferenceElapsed": {
     "placeholders": {
@@ -202,6 +203,7 @@
   "nativeRuntimeUnsupported": "Native separation runtime is unavailable in this build.",
   "settingsInferenceGroup": "Inference",
   "settingsUseCpuInference": "Use CPU Inference",
+  "settingsAndroidCpuOnlyNotice": "Android uses CPU-only inference. Vulkan is disabled for stability and better overall performance.",
   "settingsOpenMpPreset": "OpenMP Preset",
   "settingsOpenMpNextTaskHint": "Applies to the next task. Running tasks are not affected.",
   "settingsOpenMpUnavailableIos": "OpenMP is unavailable on iOS and will stay disabled.",

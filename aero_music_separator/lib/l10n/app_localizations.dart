@@ -489,6 +489,12 @@ abstract class AppLocalizations {
   /// **'Task finished. Results are cached and ready to preview/export.'**
   String get logTaskFinished;
 
+  /// No description provided for @logAndroidCpuOnlyPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Android CPU-only policy is active. Vulkan is disabled.'**
+  String get logAndroidCpuOnlyPolicy;
+
   /// No description provided for @logInferenceElapsed.
   ///
   /// In en, this message translates to:
@@ -608,6 +614,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use CPU Inference'**
   String get settingsUseCpuInference;
+
+  /// No description provided for @settingsAndroidCpuOnlyNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Android uses CPU-only inference. Vulkan is disabled for stability and better overall performance.'**
+  String get settingsAndroidCpuOnlyNotice;
 
   /// No description provided for @settingsOpenMpPreset.
   ///

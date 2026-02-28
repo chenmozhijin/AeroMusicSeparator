@@ -125,8 +125,16 @@ class _InferencePageState extends State<InferencePage> {
 
   String get _nativeUnsupportedMessage => _l10n.nativeRuntimeUnsupported;
 
-  AmsBackend _backendFor(bool forceCpu) =>
-      forceCpu ? AmsBackend.cpu : AmsBackend.auto;
+  AmsBackend _backendFor(bool forceCpu) {
+    if (Platform.isAndroid) {
+      return AmsBackend.cpu;
+    }
+    return forceCpu ? AmsBackend.cpu : AmsBackend.auto;
+  }
+
+  bool _effectiveForceCpu(bool forceCpu) {
+    return Platform.isAndroid || forceCpu;
+  }
 
   @override
   void initState() {
@@ -365,13 +373,13 @@ class _InferencePageState extends State<InferencePage> {
       if (picked == null) {
         return;
       }
-      final importedPath = await _managedFileStore.importInputAudio(picked);
-      await _managedFileStore.cleanupOldInputs();
-      _sourceInputPath = importedPath;
-      _inputPathController.text = importedPath;
+      final resolvedPath = await _managedFileStore
+          .resolveInputAudioForSelection(picked);
+      _sourceInputPath = resolvedPath;
+      _inputPathController.text = resolvedPath;
       _outputPrefixController.text = _defaultOutputPrefixForName(picked.name);
       _stemItems.clear();
-      await _prepareInput(importedPath);
+      await _prepareInput(resolvedPath);
     } catch (e) {
       _reportError(_l10n.logInputSelectionFailed('$e'));
     }
@@ -546,7 +554,8 @@ class _InferencePageState extends State<InferencePage> {
       return false;
     }
 
-    final forceCpu = await _settingsStore.readForceCpuEnabled();
+    final forceCpuSetting = await _settingsStore.readForceCpuEnabled();
+    final forceCpu = _effectiveForceCpu(forceCpuSetting);
     final backend = _backendFor(forceCpu);
     try {
       await _applyOpenMpForNextTask(forceCpu: forceCpu);
@@ -641,7 +650,8 @@ class _InferencePageState extends State<InferencePage> {
       return;
     }
 
-    final forceCpu = await _settingsStore.readForceCpuEnabled();
+    final forceCpuSetting = await _settingsStore.readForceCpuEnabled();
+    final forceCpu = _effectiveForceCpu(forceCpuSetting);
     final backend = _backendFor(forceCpu);
     try {
       await _applyOpenMpForNextTask(forceCpu: forceCpu);
@@ -687,6 +697,9 @@ class _InferencePageState extends State<InferencePage> {
       _stemItems.clear();
     });
 
+    if (Platform.isAndroid) {
+      _appendLog(_l10n.logAndroidCpuOnlyPolicy);
+    }
     _appendLog(_l10n.logStartingTask);
     try {
       final result = await _taskController.start(request);

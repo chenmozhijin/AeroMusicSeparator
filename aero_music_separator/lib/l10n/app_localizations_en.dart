@@ -241,6 +241,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Task finished. Results are cached and ready to preview/export.';
 
   @override
+  String get logAndroidCpuOnlyPolicy =>
+      'Android CPU-only policy is active. Vulkan is disabled.';
+
+  @override
   String logInferenceElapsed(Object elapsed) {
     return 'Inference elapsed: $elapsed';
   }
@@ -321,6 +325,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsUseCpuInference => 'Use CPU Inference';
+
+  @override
+  String get settingsAndroidCpuOnlyNotice =>
+      'Android uses CPU-only inference. Vulkan is disabled for stability and better overall performance.';
 
   @override
   String get settingsOpenMpPreset => 'OpenMP Preset';

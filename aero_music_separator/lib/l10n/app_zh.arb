@@ -131,6 +131,7 @@
   "logInvalidChunkOverlap": "Chunk Size 和 Overlap 必须是正整数。",
   "logStartingTask": "正在使用缓存输出目录启动分离任务...",
   "logTaskFinished": "任务完成，结果已缓存，可试听和导出。",
+  "logAndroidCpuOnlyPolicy": "Android 已启用仅 CPU 推理策略，Vulkan 已禁用。",
   "logInferenceElapsed": "推理耗时：{elapsed}",
   "@logInferenceElapsed": {
     "placeholders": {
@@ -202,6 +203,7 @@
   "nativeRuntimeUnsupported": "当前构建不包含原生分离运行时支持。",
   "settingsInferenceGroup": "推理",
   "settingsUseCpuInference": "使用 CPU 推理",
+  "settingsAndroidCpuOnlyNotice": "Android 当前固定为仅 CPU 推理。Vulkan 已为稳定性和整体性能禁用。",
   "settingsOpenMpPreset": "OpenMP 预设",
   "settingsOpenMpNextTaskHint": "仅对下一次任务生效，不影响当前运行中的任务。",
   "settingsOpenMpUnavailableIos": "iOS 当前不支持 OpenMP，将保持禁用。",

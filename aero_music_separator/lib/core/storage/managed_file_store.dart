@@ -5,22 +5,14 @@ import 'package:path_provider/path_provider.dart';
 import '../platform/file_access_service.dart';
 
 class ManagedFileStore {
-  ManagedFileStore({
-    Future<Directory> Function()? appSupportDirProvider,
-    Future<Directory> Function()? tempDirProvider,
-    int maxCachedInputFiles = 20,
-  }) : _appSupportDirProvider = appSupportDirProvider,
-       _tempDirProvider = tempDirProvider,
-       _maxCachedInputFiles = maxCachedInputFiles;
+  ManagedFileStore({Future<Directory> Function()? appSupportDirProvider})
+    : _appSupportDirProvider = appSupportDirProvider;
 
   final Future<Directory> Function()? _appSupportDirProvider;
-  final Future<Directory> Function()? _tempDirProvider;
-  final int _maxCachedInputFiles;
 
   static const String _rootDirName = 'aero_music_separator';
   static const String _modelDirName = 'models';
   static const String _activeModelFileName = 'active.gguf';
-  static const String _inputCacheDirName = 'input_cache';
 
   Future<String> resolveModelForSelection(
     PickedSourceFile source, {
@@ -63,64 +55,13 @@ class ManagedFileStore {
     return targetPath;
   }
 
-  Future<String> importInputAudio(PickedSourceFile source) async {
+  Future<String> resolveInputAudioForSelection(PickedSourceFile source) async {
     final sourceFile = await _requireReadableFile(
       source.path,
       stage: 'ffi_read',
       subject: 'input audio',
     );
-    final dir = await _inputCacheDirectory();
-    await dir.create(recursive: true);
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final safeName = _sanitizeName(_fileBaseName(source.name, source.path));
-    final extension = _fileExtension(source.name, source.path);
-
-    var candidate = File(
-      '${dir.path}${Platform.pathSeparator}${timestamp}_$safeName$extension',
-    );
-    var sequence = 1;
-    while (await candidate.exists()) {
-      candidate = File(
-        '${dir.path}${Platform.pathSeparator}${timestamp}_${safeName}_$sequence$extension',
-      );
-      sequence += 1;
-    }
-    await sourceFile.copy(candidate.path);
-    return candidate.path;
-  }
-
-  Future<void> cleanupOldInputs() async {
-    final dir = await _inputCacheDirectory();
-    if (!await dir.exists()) {
-      return;
-    }
-    final entries = await dir
-        .list(followLinks: false)
-        .where((entity) => entity is File)
-        .cast<File>()
-        .toList();
-    if (entries.isEmpty) {
-      return;
-    }
-    final ranked = <MapEntry<File, int>>[];
-    for (final file in entries) {
-      final stat = await file.stat();
-      final score = _inputCacheRank(
-        file,
-        fallbackMillis: stat.modified.millisecondsSinceEpoch,
-      );
-      ranked.add(MapEntry<File, int>(file, score));
-    }
-    ranked.sort((a, b) => b.value.compareTo(a.value));
-    if (_maxCachedInputFiles < 0) {
-      return;
-    }
-    for (var i = _maxCachedInputFiles; i < ranked.length; i++) {
-      final file = ranked[i].key;
-      if (await file.exists()) {
-        await file.delete();
-      }
-    }
+    return sourceFile.path;
   }
 
   Future<String?> migrateStoredModelPath(
@@ -165,27 +106,11 @@ class ManagedFileStore {
     return getApplicationSupportDirectory();
   }
 
-  Future<Directory> _tempDirectory() async {
-    final provider = _tempDirProvider;
-    if (provider != null) {
-      return provider();
-    }
-    return getTemporaryDirectory();
-  }
-
   Future<Directory> _modelDirectory() async {
     final base = await _appSupportDirectory();
     return Directory(
       '${base.path}${Platform.pathSeparator}$_rootDirName'
       '${Platform.pathSeparator}$_modelDirName',
-    );
-  }
-
-  Future<Directory> _inputCacheDirectory() async {
-    final base = await _tempDirectory();
-    return Directory(
-      '${base.path}${Platform.pathSeparator}$_rootDirName'
-      '${Platform.pathSeparator}$_inputCacheDirName',
     );
   }
 
@@ -231,28 +156,6 @@ class ManagedFileStore {
     }
   }
 
-  String _fileBaseName(String preferredName, String fallbackPath) {
-    final name = preferredName.trim().isNotEmpty
-        ? preferredName.trim()
-        : _fileNameFromPath(fallbackPath);
-    final dotIndex = name.lastIndexOf('.');
-    if (dotIndex > 0) {
-      return name.substring(0, dotIndex);
-    }
-    return name;
-  }
-
-  String _fileExtension(String preferredName, String fallbackPath) {
-    final name = preferredName.trim().isNotEmpty
-        ? preferredName.trim()
-        : _fileNameFromPath(fallbackPath);
-    final dotIndex = name.lastIndexOf('.');
-    if (dotIndex > 0 && dotIndex < name.length - 1) {
-      return name.substring(dotIndex);
-    }
-    return '';
-  }
-
   String _fileNameFromPath(String path) {
     final segments = File(path).uri.pathSegments;
     if (segments.isEmpty) {
@@ -261,34 +164,11 @@ class ManagedFileStore {
     return segments.last;
   }
 
-  String _sanitizeName(String rawName) {
-    final replaced = rawName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-    final compact = replaced.replaceAll(RegExp(r'_+'), '_').trim();
-    if (compact.isEmpty) {
-      return 'input';
-    }
-    return compact;
-  }
-
   String _normalizePath(String path) {
     final absolute = File(path).absolute.path;
     if (Platform.isWindows) {
       return absolute.toLowerCase();
     }
     return absolute;
-  }
-
-  int _inputCacheRank(File file, {required int fallbackMillis}) {
-    final name = _fileNameFromPath(file.path);
-    final underscore = name.indexOf('_');
-    if (underscore <= 0) {
-      return fallbackMillis;
-    }
-    final prefix = name.substring(0, underscore);
-    final parsed = int.tryParse(prefix);
-    if (parsed == null || parsed <= 0) {
-      return fallbackMillis;
-    }
-    return parsed;
   }
 }

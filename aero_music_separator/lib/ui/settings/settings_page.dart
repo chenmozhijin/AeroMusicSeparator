@@ -29,6 +29,8 @@ class _SettingsPageState extends State<SettingsPage> {
   OpenMpPreset _openMpPreset = OpenMpPreset.auto;
   String? _localeOverride;
 
+  bool get _androidCpuOnly =>
+      defaultTargetPlatform == TargetPlatform.android;
   bool get _openMpUnavailableOnIos =>
       defaultTargetPlatform == TargetPlatform.iOS;
 
@@ -112,12 +114,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.settingsUseCpuInference),
-                  value: _forceCpu,
-                  onChanged: _updateForceCpu,
-                ),
+                if (_androidCpuOnly)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(l10n.settingsAndroidCpuOnlyNotice),
+                  )
+                else
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(l10n.settingsUseCpuInference),
+                    value: _forceCpu,
+                    onChanged: _updateForceCpu,
+                  ),
                 DropdownButtonFormField<OpenMpPreset>(
                   initialValue: _openMpPreset,
                   decoration: InputDecoration(labelText: l10n.settingsOpenMpPreset),

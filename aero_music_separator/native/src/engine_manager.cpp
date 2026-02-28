@@ -11,11 +11,24 @@
 #include "error_store.h"
 
 namespace {
+constexpr const char* kGgmlDisableVulkan = "GGML_DISABLE_VULKAN";
 
-constexpr const char* kVulkanDisableHostVisibleVidmem =
-    "GGML_VK_DISABLE_HOST_VISIBLE_VIDMEM";
-constexpr const char* kVulkanAllowSysmemFallback =
-    "GGML_VK_ALLOW_SYSMEM_FALLBACK";
+const char* BackendPreferenceName(int32_t backend_preference) {
+  switch (backend_preference) {
+    case AMS_BACKEND_CPU:
+      return "CPU";
+    case AMS_BACKEND_AUTO:
+      return "Auto";
+    case AMS_BACKEND_VULKAN:
+      return "Vulkan";
+    case AMS_BACKEND_CUDA:
+      return "CUDA";
+    case AMS_BACKEND_METAL:
+      return "Metal";
+    default:
+      return "Unknown";
+  }
+}
 
 void SetEnvFlag(const char* key, const char* value) {
 #ifdef _WIN32
@@ -52,6 +65,16 @@ EngineManager& EngineManager::Instance() {
 }
 
 void EngineManager::ApplyBackendPreference(int32_t backend_preference) {
+#if defined(__ANDROID__)
+  SetEnvFlag("BSR_FORCE_CPU", "1");
+  SetEnvFlag(kGgmlDisableVulkan, "1");
+  const std::string policy =
+      std::string("AndroidCPUOnly(request=") +
+      BackendPreferenceName(backend_preference) + ")";
+  LogBackendPolicy(policy.c_str());
+  return;
+#endif
+
   const bool force_cpu = backend_preference == AMS_BACKEND_CPU;
   if (force_cpu) {
     SetEnvFlag("BSR_FORCE_CPU", "1");
@@ -60,37 +83,16 @@ void EngineManager::ApplyBackendPreference(int32_t backend_preference) {
     UnsetEnvFlag("BSR_FORCE_CPU");
   }
 
-#if defined(__ANDROID__)
-  const bool enable_vulkan_safe_mode =
-      backend_preference == AMS_BACKEND_AUTO ||
-      backend_preference == AMS_BACKEND_VULKAN;
-  if (enable_vulkan_safe_mode) {
-    SetEnvFlag(kVulkanDisableHostVisibleVidmem, "1");
-    SetEnvFlag(kVulkanAllowSysmemFallback, "1");
-  } else {
-    UnsetEnvFlag(kVulkanDisableHostVisibleVidmem);
-    UnsetEnvFlag(kVulkanAllowSysmemFallback);
-  }
-#endif
-
   const char* policy = "Auto";
   switch (backend_preference) {
     case AMS_BACKEND_CPU:
       policy = "CPU";
       break;
     case AMS_BACKEND_AUTO:
-#if defined(__ANDROID__)
-      policy = "Auto+VulkanSafe";
-#else
       policy = "Auto";
-#endif
       break;
     case AMS_BACKEND_VULKAN:
-#if defined(__ANDROID__)
-      policy = "VulkanSafe";
-#else
       policy = "Vulkan";
-#endif
       break;
     case AMS_BACKEND_CUDA:
       policy = "CUDA";

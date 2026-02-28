@@ -3,6 +3,8 @@ project(aero_separator_android LANGUAGES C CXX)
 
 # This CMake project delegates to the shared native FFI core.
 set(AMS_BSR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../BSRoformer.cpp" CACHE PATH "")
+# Android builds are CPU-only for stability/perf consistency.
+set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
 
 if(NOT DEFINED ANDROID_ABI OR ANDROID_ABI STREQUAL "")
   message(FATAL_ERROR "ANDROID_ABI is required for Android native builds.")

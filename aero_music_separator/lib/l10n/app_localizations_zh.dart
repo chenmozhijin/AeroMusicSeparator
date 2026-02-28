@@ -235,6 +235,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get logTaskFinished => '任务完成，结果已缓存，可试听和导出。';
 
   @override
+  String get logAndroidCpuOnlyPolicy => 'Android 已启用仅 CPU 推理策略，Vulkan 已禁用。';
+
+  @override
   String logInferenceElapsed(Object elapsed) {
     return '推理耗时：$elapsed';
   }
@@ -313,6 +316,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsUseCpuInference => '使用 CPU 推理';
+
+  @override
+  String get settingsAndroidCpuOnlyNotice =>
+      'Android 当前固定为仅 CPU 推理。Vulkan 已为稳定性和整体性能禁用。';
 
   @override
   String get settingsOpenMpPreset => 'OpenMP 预设';

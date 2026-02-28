@@ -23,7 +23,6 @@ void main() {
 
     final store = ManagedFileStore(
       appSupportDirProvider: () async => supportRoot,
-      tempDirProvider: () async => tempRoot,
     );
 
     final source1 = File(
@@ -66,7 +65,6 @@ void main() {
 
     final store = ManagedFileStore(
       appSupportDirProvider: () async => supportRoot,
-      tempDirProvider: () async => tempRoot,
     );
     final source = File('${tempRoot.path}${Platform.pathSeparator}direct.gguf');
     await source.writeAsString('model-direct');
@@ -82,10 +80,10 @@ void main() {
   });
 
   test(
-    'ManagedFileStore imports audio and cleans up old cache files',
+    'ManagedFileStore resolves input path without creating cache copy',
     () async {
-      final supportRoot = await createTempRoot('support_audio');
-      final tempRoot = await createTempRoot('temp_audio');
+      final supportRoot = await createTempRoot('support_input_direct');
+      final tempRoot = await createTempRoot('temp_input_direct');
       addTearDown(() async {
         if (await supportRoot.exists()) {
           await supportRoot.delete(recursive: true);
@@ -97,33 +95,24 @@ void main() {
 
       final store = ManagedFileStore(
         appSupportDirProvider: () async => supportRoot,
-        tempDirProvider: () async => tempRoot,
-        maxCachedInputFiles: 2,
       );
       final source = File(
         '${tempRoot.path}${Platform.pathSeparator}input_source.wav',
       );
       await source.writeAsBytes(List<int>.filled(128, 7));
 
-      final importedPaths = <String>[];
-      for (var i = 0; i < 3; i++) {
-        importedPaths.add(
-          await store.importInputAudio(
-            PickedSourceFile(path: source.path, name: 'track_$i.wav'),
-          ),
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 2));
-      }
-      await store.cleanupOldInputs();
+      final resolvedPath = await store.resolveInputAudioForSelection(
+        PickedSourceFile(path: source.path, name: 'track.wav'),
+      );
+      expect(File(resolvedPath).absolute.path, source.absolute.path);
 
-      final inputDir = File(importedPaths.first).parent;
-      final remainingFiles = await inputDir
+      final filesInSourceDir = await source.parent
           .list(followLinks: false)
           .where((entity) => entity is File)
           .cast<File>()
           .toList();
-      expect(remainingFiles.length, lessThanOrEqualTo(2));
-      expect(await File(importedPaths.last).exists(), isTrue);
+      expect(filesInSourceDir.length, 1);
+      expect(filesInSourceDir.single.absolute.path, source.absolute.path);
     },
   );
 
@@ -143,7 +132,6 @@ void main() {
 
       final store = ManagedFileStore(
         appSupportDirProvider: () async => supportRoot,
-        tempDirProvider: () async => tempRoot,
       );
       final legacy = File(
         '${tempRoot.path}${Platform.pathSeparator}legacy_direct.gguf',
@@ -178,7 +166,6 @@ void main() {
 
       final store = ManagedFileStore(
         appSupportDirProvider: () async => supportRoot,
-        tempDirProvider: () async => tempRoot,
       );
       final legacy = File(
         '${tempRoot.path}${Platform.pathSeparator}legacy.gguf',

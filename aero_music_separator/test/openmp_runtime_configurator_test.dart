@@ -70,11 +70,20 @@ void main() {
 
     expect(
       configurator.resolveThreadCountForTest(
+        preset: OpenMpPreset.auto,
+        forceCpu: true,
+        platform: TargetPlatform.android,
+      ),
+      _clamp((cores * 0.40).floor(), 2, 4),
+    );
+
+    expect(
+      configurator.resolveThreadCountForTest(
         preset: OpenMpPreset.performance,
         forceCpu: true,
         platform: TargetPlatform.android,
       ),
-      _clamp((cores * 0.33).floor(), 2, 4),
+      _clamp((cores * 0.80).floor(), 4, 8),
     );
 
     expect(

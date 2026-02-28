@@ -5,8 +5,6 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val amsVulkanIncludeDir = System.getenv("AMS_VULKAN_INCLUDE_DIR") ?: ""
-
 android {
     namespace = "com.example.aero_music_separator"
     compileSdk = flutter.compileSdkVersion
@@ -26,7 +24,6 @@ android {
         applicationId = "com.example.aero_music_separator"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // Vulkan native linking baseline: require Android API 30+.
         minSdk = 30
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -44,9 +41,8 @@ android {
                     "-DANDROID_STL=c++_shared",
                     "-DAMS_USE_SYSTEM_FFMPEG=OFF",
                     "-DAMS_FFMPEG_ANDROID_ROOT=${'$'}{projectDir}/../../native/third_party/ffmpeg/android",
-                    "-DAMS_VULKAN_INCLUDE_DIR=$amsVulkanIncludeDir",
                     "-DGGML_CUDA=OFF",
-                    "-DGGML_VULKAN=ON",
+                    "-DGGML_VULKAN=OFF",
                     "-DGGML_METAL=OFF"
                 )
             }
