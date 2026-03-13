@@ -1,6 +1,6 @@
 {
-    "name": "aero_music_separator",
-    "short_name": "aero_music_separator",
+    "name": "AeroMusicSeparator",
+    "short_name": "AeroMusicSeparator",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

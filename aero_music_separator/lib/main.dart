@@ -91,7 +91,7 @@ class _AeroMusicSeparatorAppState extends State<AeroMusicSeparatorApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       onGenerateTitle: (context) =>
-          AppLocalizations.of(context)?.appTitle ?? 'Aero Music Separator',
+          AppLocalizations.of(context)?.appTitle ?? 'AeroMusicSeparator',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0C6EFD)),
       ),

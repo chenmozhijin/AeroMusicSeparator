@@ -1,4 +1,4 @@
-package com.example.aero_music_separator
+package com.cmzj.aero_music_separator
 
 import android.app.Activity
 import android.content.Intent

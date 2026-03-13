@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Aero Music Separator';
+  String get appTitle => 'AeroMusicSeparator';
 
   @override
   String get navInference => 'Inference';
