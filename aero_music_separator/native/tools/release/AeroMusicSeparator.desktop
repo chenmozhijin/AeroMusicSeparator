@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Aero Music Separator
+Comment=Offline music separation powered by Flutter and native FFI
+Exec=aero_music_separator
+Icon=AeroMusicSeparator
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupNotify=true
